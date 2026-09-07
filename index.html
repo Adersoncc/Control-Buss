@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Campanhas em Veículos</title>
+<style>
+:root {
+  --bg-color: #f4f6f8;
+  --card-bg: #ffffff;
+  --text-color: #333333;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --status-ok: #16a34a; 
+  --status-warning: #ea580c; 
+  --status-expired: #dc2626; 
+}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body { background-color: var(--bg-color); color: var(--text-color); padding: 15px; line-height: 1.5; }
+.container { max-width: 1000px; margin: 0 auto; }
+h1 { text-align: center; margin-bottom: 24px; color: #1e293b; font-size: 1.5rem; }
+.card { background: var(--card-bg); border-radius: 8px; padding: 16px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+.card h2 { font-size: 1.15rem; margin-bottom: 16px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
+.form-group { margin-bottom: 16px; }
+label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.95rem; }
+input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; }
+button { background-color: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; margin-top: 12px; }
+button:hover { background-color: var(--primary-hover); }
+.badge { display: inline-block; padding: 4px 10px; border-radius: 20px; color: white; font-weight: bold; font-size: 0.85rem; text-transform: uppercase; white-space: nowrap; }
+.badge-ok { background-color: var(--status-ok); }
+.badge-warning { background-color: var(--status-warning); }
+.badge-expired { background-color: var(--status-expired); }
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 12px;
+}
+table { width: 100%; border-collapse: collapse; min-width: 500px; }
+th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.9rem; }
+th { background-color: #f8fafc; font-weight: 600; }
+
+.search-box { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.search-box button { width: auto; margin-top: 0; flex: 1; min-width: 100px; }
+.search-box input { flex: 2; min-width: 180px; }
+
+.history-list { list-style: none; }
+.history-item { padding: 12px; border-left: 4px solid var(--primary); background: #f8fafc; margin-bottom: 8px; border-radius: 0 6px 6px 0; }
+
+.bus-selection-box {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  background: #f8fafc;
+}
+.bus-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.bus-checkbox-item input {
+  width: auto;
+}
+.fleet-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 100px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.fleet-tag {
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fleet-tag button {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: auto;
+}
+#loadingOverlay {
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Controle de Campanhas em Veículos</h1>
+  <div id="loadingOverlay">Conectando ao banco de dados na nuvem...</div>
+
+  <div class="card">
+    <h2>1. Cadastro de Frota de Ônibus</h2>
+    <form id="fleetForm">
+      <div class="form-group">
+        <label for="busNumberInput">Número do Ônibus</label>
+        <div class="search-box" style="margin-bottom: 0;">
+          <input type="text" id="busNumberInput" placeholder="Ex: 11.502 ou 17.008" required>
+          <button type="submit">Cadastrar Ônibus</button>
+        </div>
+      </div>
+    </form>
+    
+    <div style="margin-top: 16px;">
+      <label>Ônibus Cadastrados na Frota (<span id="fleetCount">0</span>):</label>
+      <div id="fleetListContainer" class="fleet-badge-list">
+        <span style="color: #666; font-size: 0.9rem;">Carregando frota...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Cadastrar Nova Campanha</h2>
+    <form id="campaignForm">
+      <div class="form-group">
+        <label for="campaignName">Nome da Campanha</label>
+        <input type="text" id="campaignName" placeholder="Ex: Campanha de Verão" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="validityDays">Prazo de Validade</label>
+        <select id="validityDays" required>
+          <option value="15">15 dias</option>
+          <option value="30">30 dias</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Selecione os Ônibus que receberão a Campanha:</label>
+        <div class="search-box" style="margin-bottom: 8px;">
+          <input type="text" id="filterBusSelection" placeholder="Filtrar ônibus..." oninput="filterBusCheckboxes()">
+          <button type="button" onclick="selectAllBuses(true)">Marcar</button>
+          <button type="button" onclick="selectAllBuses(false)" style="background-color: #64748b;">Limpar</button>
+        </div>
+        <div id="busSelectionContainer" class="bus-selection-box">
+          <span style="color: #666; font-size: 0.9rem;">Carregando ônibus...</span>
+        </div>
+      </div>
+
+      <button type="submit">Salvar e Aplicar Campanha</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>3. Consultar Histórico do Veículo</h2>
+    <div class="search-box">
+      <input type="text" id="searchBusNumber" placeholder="Nº do ônibus (ex: 11.502)">
+      <button type="button" onclick="searchBusHistory()">Buscar</button>
+    </div>
+    <div id="historyResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>4. Campanhas Registradas</h2>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Campanha</th>
+            <th>Qtd. Veículos</th>
+            <th>Início</th>
+            <th>Vencimento</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="campaignsTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs via CDN -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  // TODO: Substitua com as suas credenciais do Firebase (Painel do Firebase -> Configurações do Projeto)
+  const firebaseConfig = {
+  apiKey: "AIzaSyC63Q1eBXVFz5CkLxxWMAfDN6uxWwy_oU8",
+  authDomain: "controle-de-campanhas-55ae2.firebaseapp.com",
+  projectId: "controle-de-campanhas-55ae2",
+  storageBucket: "controle-de-campanhas-55ae2.firebasestorage.app",
+  messagingSenderId: "923348616466",
+  appId: "1:923348616466:web:8bad212b45af31028ddfcb"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  let fleet = [];
+  let campaigns = [];
+  let busHistory = {};
+
+  const fleetForm = document.getElementById('fleetForm');
+  const busNumberInput = document.getElementById('busNumberInput');
+  const fleetListContainer = document.getElementById('fleetListContainer');
+  const fleetCount = document.getElementById('fleetCount');
+  const campaignForm = document.getElementById('campaignForm');
+  const busSelectionContainer = document.getElementById('busSelectionContainer');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+
+  // Inicializar escutas em tempo real do Firestore
+  function initRealtimeSync() {
+    // 1. Sincronizar Frota
+    onSnapshot(collection(db, "fleet"), (snapshot) => {
+      fleet = [];
+      snapshot.forEach((docSnap) => {
+        fleet.push(docSnap.data().number);
+      });
+      fleet.sort();
+      renderFleet();
+      renderBusCheckboxes();
+      checkLoaded();
+    }, (error) => {
+      console.error("Erro ao carregar frota: ", error);
+      loadingOverlay.textContent = "Erro ao conectar com o banco de dados. Verifique as credenciais.";
+      loadingOverlay.style.color = "#dc2626";
+    });
+
+    // 2. Sincronizar Campanhas
+    const qCampaigns = query(collection(db, "campaigns"), orderBy("createdAt", "desc"));
+    onSnapshot(qCampaigns, (snapshot) => {
+      campaigns = [];
+      snapshot.forEach((docSnap) => {
+        campaigns.push(docSnap.data());
+      });
+      renderCampaignsTable();
+    });
+
+    // 3. Sincronizar Histórico
+    onSnapshot(collection(db, "history"), (snapshot) => {
+      busHistory = {};
+      snapshot.forEach((docSnap) => {
+        busHistory[docSnap.id] = docSnap.data().records || [];
+      });
+    });
+  }
+
+  function checkLoaded() {
+    loadingOverlay.style.display = 'none';
+  }
+
+  // Cadastrar Ônibus
+  fleetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const num = busNumberInput.value.trim();
+    if (!num) return;
+
+    if (fleet.includes(num)) {
+      alert('Este número de ônibus já está cadastrado na frota.');
+      return;
+    }
+
+    try {
+      // Usamos o número do ônibus como ID do documento no Firestore
+      await setDoc(doc(db, "fleet", num), { number: num });
+      busNumberInput.value = '';
+    } catch (error) {
+      console.error("Erro ao salvar ônibus:", error);
+      alert("Erro ao cadastrar ônibus.");
+    }
+  });
+
+  // Remover Ônibus
+  window.removeBusFromFleet = async function(num) {
+    if (confirm(`Deseja remover o ônibus ${num} da frota?`)) {
+      try {
+        await deleteDoc(doc(db, "fleet", num));
+      } catch (error) {
+        console.error("Erro ao remover:", error);
+        alert("Erro ao remover ônibus.");
+      }
+    }
+  }
+
+  function renderFleet() {
+    fleetCount.textContent = fleet.length;
+    if (fleet.length === 0) {
+      fleetListContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Nenhum ônibus cadastrado ainda.</span>';
+      return;
+    }
+
+    let html = '';
+    fleet.forEach(num => {
+      html += `<div class="fleet-tag">${num} <button type="button" onclick="removeBusFromFleet('${num}')" title="Remover">×</button></div>`;
+    });
+    fleetListContainer.innerHTML = html;
+  }
+
+  function renderBusCheckboxes(filterText = '') {
+    if (fleet.length === 0) {
+      busSelectionContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Cadastre ônibus na frota acima primeiro.</span>';
+      return;
+    }
+
+    const filteredFleet = fleet.filter(num => num.toLowerCase().includes(filterText.toLowerCase()));
+
+    if (filteredFleet.length === 0) {
+      busSelectionContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Nenhum ônibus encontrado com esse filtro.</span>';
+      return;
+    }
+
+    let html = '';
+    filteredFleet.forEach(num => {
+      html += `
+        <div class="bus-checkbox-item">
+          <input type="checkbox" id="chk_bus_${num}" value="${num}" class="bus-chk">
+          <label for="chk_bus_${num}" style="margin-bottom:0; cursor:pointer; font-weight:normal;">Ônibus ${num}</label>
+        </div>
+      `;
+    });
+    busSelectionContainer.innerHTML = html;
+  }
+
+  window.filterBusCheckboxes = function() {
+    const queryStr = document.getElementById('filterBusSelection').value;
+    renderBusCheckboxes(queryStr);
+  }
+
+  window.selectAllBuses = function(select) {
+    const checkboxes = document.querySelectorAll('.bus-chk');
+    checkboxes.forEach(chk => chk.checked = select);
+  }
+
+  // Cadastrar Campanha
+  campaignForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('campaignName').value;
+    const validity = parseInt(document.getElementById('validityDays').value);
+    
+    const checkedBuses = document.querySelectorAll('.bus-chk:checked');
+    const busList = Array.from(checkedBuses).map(chk => chk.value);
+
+    if (busList.length === 0) {
+      alert('Selecione pelo menos um ônibus para aplicar a campanha.');
+      return;
+    }
+
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(startDate.getDate() + validity);
+    const campaignId = Date.now().toString();
+
+    const campaignData = { 
+      id: campaignId, 
+      name, 
+      validity, 
+      startDate: startDate.toISOString(), 
+      endDate: endDate.toISOString(), 
+      buses: busList,
+      createdAt: Date.now()
+    };
+
+    try {
+      // Salvar Campanha
+      await setDoc(doc(db, "campaigns", campaignId), campaignData);
+
+      // Atualizar Histórico de cada ônibus na nuvem
+      for (const busNum of busList) {
+        const historyRef = doc(db, "history", busNum);
+        const historySnap = await getDoc(historyRef);
+        let existingRecords = [];
+        if (historySnap.exists()) {
+          existingRecords = historySnap.data().records || [];
+        }
+        existingRecords.push({ 
+          campaignName: name, 
+          startDate: startDate.toISOString(), 
+          endDate: endDate.toISOString() 
+        });
+        await setDoc(historyRef, { records: existingRecords });
+      }
+
+      campaignForm.reset();
+      renderBusCheckboxes();
+      alert('Campanha cadastrada e sincronizada com sucesso!');
+    } catch (error) {
+      console.error("Erro ao salvar campanha:", error);
+      alert("Erro ao registrar campanha.");
+    }
+  });
+
+  function getStatusBadge(endDateStr) {
+    const now = new Date();
+    const endDate = new Date(endDateStr);
+    const diffDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return '<span class="badge badge-expired">Vencido</span>';
+    if (diffDays <= 2) return '<span class="badge badge-warning">A vencer</span>';
+    return '<span class="badge badge-ok">Dentro do prazo</span>';
+  }
+
+  function renderCampaignsTable() {
+    const tbody = document.getElementById('campaignsTableBody');
+    tbody.innerHTML = '';
+    
+    if (campaigns.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">Nenhuma campanha registrada.</td></tr>';
+      return;
+    }
+
+    campaigns.forEach(c => {
+      const tr = document.createElement('tr');
+      const startFormatted = new Date(c.startDate).toLocaleDateString('pt-BR');
+      const endFormatted = new Date(c.endDate).toLocaleDateString('pt-BR');
+      const badge = getStatusBadge(c.endDate);
+      tr.innerHTML = `<td><strong>${c.name}</strong></td><td>${c.buses.length} ônibus</td><td>${startFormatted}</td><td>${endFormatted}</td><td>${badge}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  window.searchBusHistory = function() {
+    const busNum = document.getElementById('searchBusNumber').value.trim();
+    const container = document.getElementById('historyResult');
+
+    if (!busNum) {
+      container.innerHTML = '<p style="color: #666;">Digite o número de um ônibus para buscar.</p>';
+      return;
+    }
+
+    const history = busHistory[busNum];
+
+    if (!history || history.length === 0) {
+      container.innerHTML = `<p style="color: #dc2626;">Nenhum histórico encontrado para o ônibus <strong>${busNum}</strong>.</p>`;
+      return;
+    }
+
+    const sortedHistory = [...history].reverse();
+    let html = `<p style="margin-bottom: 12px;">Histórico de campanhas do ônibus <strong>${busNum}</strong> (${history.length} registrada(s)):</p>`;
+    html += '<ul class="history-list">';
+    sortedHistory.forEach((item, index) => {
+      const start = new Date(item.startDate).toLocaleDateString('pt-BR');
+      const end = new Date(item.endDate).toLocaleDateString('pt-BR');
+      const badge = getStatusBadge(item.endDate);
+      const isCurrent = index === 0 ? ' (Campanha Atual/Mais Recente)' : '';
+      html += `
+        <li class="history-item">
+          <strong>${item.campaignName}</strong>${isCurrent}<br>
+          <small>Período: ${start} até ${end}</small><br>
+          Status: ${badge}
+        </li>`;
+    });
+    html += '</ul>';
+    container.innerHTML = html;
+  }
+
+  // Inicializa a sincronização
+  initRealtimeSync();
+</script>
+
+</body>
+</html>
