@@ -179,14 +179,23 @@ th { background-color: #f8fafc; font-weight: 600; }
   color: #1e293b;
 }
 
-.campaign-link {
-  color: var(--primary);
-  text-decoration: underline;
-  cursor: pointer;
+.campaign-btn {
+  background-color: #e2e8f0;
+  color: #1e293b;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
   font-weight: 600;
+  cursor: pointer;
+  width: auto;
+  margin-top: 0;
+  display: inline-block;
+  text-align: left;
+  transition: background-color 0.2s;
 }
-.campaign-link:hover {
-  color: var(--primary-hover);
+.campaign-btn:hover {
+  background-color: #cbd5e1;
 }
 </style>
 </head>
@@ -253,7 +262,7 @@ th { background-color: #f8fafc; font-weight: 600; }
       </div>
       <div style="margin-bottom: 12px;">
         <p id="modalCampaignDates" style="color: #64748b; font-size: 0.9rem; margin-bottom: 12px;"></p>
-        <label>Veículos com esta campanha:</label>
+        <label>Veículos atualmente com esta campanha ativa:</label>
       </div>
       <div id="modalCampaignBusesList" class="fleet-badge-list" style="max-height: 250px;">
         <!-- Lista de veículos preenchida dinamicamente -->
@@ -374,7 +383,6 @@ th { background-color: #f8fafc; font-weight: 600; }
     }
   }
 
-  // Função para abrir o modal de detalhes da campanha ao clicar no nome
   window.openCampaignDetails = function(campaignId) {
     const campaign = campaigns.find(c => c.id === campaignId);
     if (!campaign) return;
@@ -385,11 +393,27 @@ th { background-color: #f8fafc; font-weight: 600; }
     document.getElementById('modalCampaignDates').textContent = `Período: ${startFormatted} até ${endFormatted}`;
 
     const busesListContainer = document.getElementById('modalCampaignBusesList');
-    if (!campaign.buses || campaign.buses.length === 0) {
-      busesListContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Nenhum veículo vinculado.</span>';
+    
+    const now = new Date();
+    let currentBuses = [];
+
+    if (campaign.buses) {
+      campaign.buses.forEach(busNum => {
+        const history = busHistory[busNum] || [];
+        if (history.length > 0) {
+          const latestRecord = history[history.length - 1];
+          if (latestRecord.campaignName === campaign.name && new Date(latestRecord.endDate) >= now) {
+            currentBuses.push(busNum);
+          }
+        }
+      });
+    }
+
+    if (currentBuses.length === 0) {
+      busesListContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Nenhum veículo com esta campanha ativa no momento (todos foram substituídos ou venceram).</span>';
     } else {
       let html = '';
-      campaign.buses.sort().forEach(num => {
+      currentBuses.sort().forEach(num => {
         html += `<div class="fleet-tag">${num}</div>`;
       });
       busesListContainer.innerHTML = html;
@@ -647,7 +671,7 @@ th { background-color: #f8fafc; font-weight: 600; }
       const badge = getStatusBadge(c.endDate);
       
       tr.innerHTML = `
-        <td><span class="campaign-link" onclick="openCampaignDetails('${c.id}')">${c.name}</span></td>
+        <td><button type="button" class="campaign-btn" onclick="openCampaignDetails('${c.id}')">${c.name}</button></td>
         <td>${c.buses.length} ônibus</td>
         <td>${startFormatted}</td>
         <td>${endFormatted}</td>
