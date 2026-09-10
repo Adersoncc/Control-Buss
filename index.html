@@ -102,7 +102,7 @@ th { background-color: #f8fafc; font-weight: 600; }
   margin-bottom: 10px;
 }
 
-/* Estilos do Modal */
+/* Estilos dos Modais */
 .modal-overlay {
   display: none;
   position: fixed;
@@ -178,6 +178,16 @@ th { background-color: #f8fafc; font-weight: 600; }
   font-weight: bold;
   color: #1e293b;
 }
+
+.campaign-link {
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+.campaign-link:hover {
+  color: var(--primary-hover);
+}
 </style>
 </head>
 <body>
@@ -230,6 +240,23 @@ th { background-color: #f8fafc; font-weight: 600; }
         <div id="fleetListContainer" class="fleet-badge-list" style="margin-top: 8px;">
           <span style="color: #666; font-size: 0.9rem;">Carregando frota...</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Detalhes da Campanha -->
+  <div id="campaignDetailsModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalCampaignTitle">Detalhes da Campanha</h2>
+        <button type="button" class="close-modal" onclick="closeCampaignModal()">&times;</button>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <p id="modalCampaignDates" style="color: #64748b; font-size: 0.9rem; margin-bottom: 12px;"></p>
+        <label>Veículos com esta campanha:</label>
+      </div>
+      <div id="modalCampaignBusesList" class="fleet-badge-list" style="max-height: 250px;">
+        <!-- Lista de veículos preenchida dinamicamente -->
       </div>
     </div>
   </div>
@@ -324,6 +351,7 @@ th { background-color: #f8fafc; font-weight: 600; }
   const busSelectionContainer = document.getElementById('busSelectionContainer');
   const loadingOverlay = document.getElementById('loadingOverlay');
   const fleetModal = document.getElementById('fleetModal');
+  const campaignDetailsModal = document.getElementById('campaignDetailsModal');
 
   window.openFleetModal = function() {
     fleetModal.style.display = 'flex';
@@ -333,10 +361,41 @@ th { background-color: #f8fafc; font-weight: 600; }
     fleetModal.style.display = 'none';
   }
 
+  window.closeCampaignModal = function() {
+    campaignDetailsModal.style.display = 'none';
+  }
+
   window.onclick = function(event) {
     if (event.target === fleetModal) {
       closeFleetModal();
     }
+    if (event.target === campaignDetailsModal) {
+      closeCampaignModal();
+    }
+  }
+
+  // Função para abrir o modal de detalhes da campanha ao clicar no nome
+  window.openCampaignDetails = function(campaignId) {
+    const campaign = campaigns.find(c => c.id === campaignId);
+    if (!campaign) return;
+
+    document.getElementById('modalCampaignTitle').textContent = campaign.name;
+    const startFormatted = new Date(campaign.startDate).toLocaleDateString('pt-BR');
+    const endFormatted = new Date(campaign.endDate).toLocaleDateString('pt-BR');
+    document.getElementById('modalCampaignDates').textContent = `Período: ${startFormatted} até ${endFormatted}`;
+
+    const busesListContainer = document.getElementById('modalCampaignBusesList');
+    if (!campaign.buses || campaign.buses.length === 0) {
+      busesListContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Nenhum veículo vinculado.</span>';
+    } else {
+      let html = '';
+      campaign.buses.sort().forEach(num => {
+        html += `<div class="fleet-tag">${num}</div>`;
+      });
+      busesListContainer.innerHTML = html;
+    }
+
+    campaignDetailsModal.style.display = 'flex';
   }
 
   function initRealtimeSync() {
@@ -379,14 +438,12 @@ th { background-color: #f8fafc; font-weight: 600; }
     loadingOverlay.style.display = 'none';
   }
 
-  // Atualiza contadores do painel (frota e sem campanha)
   function updateDashboardStats() {
     statFleetCount.textContent = fleet.length;
 
     const now = new Date();
     let busesWithActiveCampaign = new Set();
 
-    // Identificar ônibus que possuem ao menos uma campanha válida (não vencida)
     for (const busNum of fleet) {
       const history = busHistory[busNum] || [];
       const hasActive = history.some(item => new Date(item.endDate) >= now);
@@ -477,7 +534,6 @@ th { background-color: #f8fafc; font-weight: 600; }
     checkboxes.forEach(chk => chk.checked = select);
   }
 
-  // Cadastrar Campanha com Verificação de Vigência
   campaignForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('campaignName').value;
@@ -491,7 +547,6 @@ th { background-color: #f8fafc; font-weight: 600; }
       return;
     }
 
-    // Verificar se algum dos ônibus selecionados possui campanha ativa válida
     const now = new Date();
     let conflictingBuses = [];
     for (const busNum of busList) {
@@ -507,7 +562,7 @@ th { background-color: #f8fafc; font-weight: 600; }
                       conflictingBuses.join("\n") + 
                       "\n\nDeseja realmente substituir a campanha atual destes veículos?";
       if (!confirm(message)) {
-        return; // Cancela o cadastro se o usuário não confirmar
+        return;
       }
     }
 
@@ -590,7 +645,14 @@ th { background-color: #f8fafc; font-weight: 600; }
       const startFormatted = new Date(c.startDate).toLocaleDateString('pt-BR');
       const endFormatted = new Date(c.endDate).toLocaleDateString('pt-BR');
       const badge = getStatusBadge(c.endDate);
-      tr.innerHTML = `<td><strong>${c.name}</strong></td><td>${c.buses.length} ônibus</td><td>${startFormatted}</td><td>${endFormatted}</td><td>${badge}</td>`;
+      
+      tr.innerHTML = `
+        <td><span class="campaign-link" onclick="openCampaignDetails('${c.id}')">${c.name}</span></td>
+        <td>${c.buses.length} ônibus</td>
+        <td>${startFormatted}</td>
+        <td>${endFormatted}</td>
+        <td>${badge}</td>
+      `;
       tbody.appendChild(tr);
     });
   }
