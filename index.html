@@ -197,6 +197,23 @@ th { background-color: #f8fafc; font-weight: 600; }
 .campaign-btn:hover {
   background-color: #cbd5e1;
 }
+
+.delete-btn {
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: auto;
+  margin-top: 0;
+  transition: background-color 0.2s;
+}
+.delete-btn:hover {
+  background-color: #fecaca;
+}
 </style>
 </head>
 <body>
@@ -322,6 +339,7 @@ th { background-color: #f8fafc; font-weight: 600; }
             <th>Início</th>
             <th>Vencimento</th>
             <th>Status</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody id="campaignsTableBody"></tbody>
@@ -420,6 +438,40 @@ th { background-color: #f8fafc; font-weight: 600; }
     }
 
     campaignDetailsModal.style.display = 'flex';
+  }
+
+  // Função para excluir uma campanha e limpar do histórico dos veículos afetados
+  window.deleteCampaign = async function(campaignId) {
+    const campaign = campaigns.find(c => c.id === campaignId);
+    if (!campaign) return;
+
+    if (!confirm(`Tem certeza que deseja apagar a campanha "${campaign.name}"? Esta ação removerá o registro e os lançamentos no histórico dos veículos associados.`)) {
+      return;
+    }
+
+    try {
+      // 1. Remover do histórico de cada veículo que estava vinculado
+      if (campaign.buses && campaign.buses.length > 0) {
+        for (const busNum of campaign.buses) {
+          const historyRef = doc(db, "history", busNum);
+          const historySnap = await getDoc(historyRef);
+          if (historySnap.exists()) {
+            let records = historySnap.data().records || [];
+            // Filtra removendo o registro correspondente a esta campanha
+            let updatedRecords = records.filter(r => r.campaignName !== campaign.name);
+            await setDoc(historyRef, { records: updatedRecords });
+          }
+        }
+      }
+
+      // 2. Apagar o documento da campanha no Firestore
+      await deleteDoc(doc(db, "campaigns", campaignId));
+
+      alert('Campanha apagada com sucesso!');
+    } catch (error) {
+      console.error("Erro ao apagar campanha:", error);
+      alert("Erro ao excluir campanha do banco de dados.");
+    }
   }
 
   function initRealtimeSync() {
@@ -660,7 +712,7 @@ th { background-color: #f8fafc; font-weight: 600; }
     tbody.innerHTML = '';
     
     if (campaigns.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">Nenhuma campanha registrada.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">Nenhuma campanha registrada.</td></tr>';
       return;
     }
 
@@ -676,6 +728,7 @@ th { background-color: #f8fafc; font-weight: 600; }
         <td>${startFormatted}</td>
         <td>${endFormatted}</td>
         <td>${badge}</td>
+        <td><button type="button" class="delete-btn" onclick="deleteCampaign('${c.id}')">Excluir</button></td>
       `;
       tbody.appendChild(tr);
     });
