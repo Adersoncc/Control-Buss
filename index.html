@@ -153,6 +153,31 @@ th { background-color: #f8fafc; font-weight: 600; }
 .close-modal:hover {
   color: #1e293b;
 }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--card-bg);
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid var(--primary);
+}
+.stat-card h3 {
+  font-size: 0.85rem;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.stat-card .stat-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1e293b;
+}
 </style>
 </head>
 <body>
@@ -161,11 +186,23 @@ th { background-color: #f8fafc; font-weight: 600; }
   <h1>Controle de Campanhas em Veículos</h1>
   <div id="loadingOverlay">Conectando ao banco de dados na nuvem...</div>
 
+  <!-- Painel de Indicadores / Resumo -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h3>Frota Total</h3>
+      <div class="stat-value" id="statFleetCount">0</div>
+    </div>
+    <div class="stat-card" style="border-left-color: var(--status-warning);">
+      <h3>Veículos Sem Campanha</h3>
+      <div class="stat-value" id="statWithoutCampaign">0</div>
+    </div>
+  </div>
+
   <!-- Botão Principal para Abrir o Modal de Frota -->
   <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <h2 style="margin-bottom: 4px; border: none; padding: 0;">Gestão da Frota</h2>
-      <p style="color: #64748b; font-size: 0.9rem;">Total de ônibus cadastrados: <span id="fleetCount">0</span></p>
+      <p style="color: #64748b; font-size: 0.9rem;">Cadastre e gerencie os ônibus do sistema</p>
     </div>
     <button type="button" onclick="openFleetModal()" style="width: auto; margin-top: 0;">+ Adicionar Veículo à Frota</button>
   </div>
@@ -281,13 +318,13 @@ th { background-color: #f8fafc; font-weight: 600; }
   const fleetForm = document.getElementById('fleetForm');
   const busNumberInput = document.getElementById('busNumberInput');
   const fleetListContainer = document.getElementById('fleetListContainer');
-  const fleetCount = document.getElementById('fleetCount');
+  const statFleetCount = document.getElementById('statFleetCount');
+  const statWithoutCampaign = document.getElementById('statWithoutCampaign');
   const campaignForm = document.getElementById('campaignForm');
   const busSelectionContainer = document.getElementById('busSelectionContainer');
   const loadingOverlay = document.getElementById('loadingOverlay');
   const fleetModal = document.getElementById('fleetModal');
 
-  // Funções de controle do Modal
   window.openFleetModal = function() {
     fleetModal.style.display = 'flex';
   }
@@ -296,14 +333,12 @@ th { background-color: #f8fafc; font-weight: 600; }
     fleetModal.style.display = 'none';
   }
 
-  // Fechar o modal clicando fora dele
   window.onclick = function(event) {
     if (event.target === fleetModal) {
       closeFleetModal();
     }
   }
 
-  // Inicializar escutas em tempo real do Firestore
   function initRealtimeSync() {
     onSnapshot(collection(db, "fleet"), (snapshot) => {
       fleet = [];
@@ -313,6 +348,7 @@ th { background-color: #f8fafc; font-weight: 600; }
       fleet.sort();
       renderFleet();
       renderBusCheckboxes();
+      updateDashboardStats();
       checkLoaded();
     }, (error) => {
       console.error("Erro ao carregar frota: ", error);
@@ -327,6 +363,7 @@ th { background-color: #f8fafc; font-weight: 600; }
         campaigns.push(docSnap.data());
       });
       renderCampaignsTable();
+      updateDashboardStats();
     });
 
     onSnapshot(collection(db, "history"), (snapshot) => {
@@ -334,6 +371,7 @@ th { background-color: #f8fafc; font-weight: 600; }
       snapshot.forEach((docSnap) => {
         busHistory[docSnap.id] = docSnap.data().records || [];
       });
+      updateDashboardStats();
     });
   }
 
@@ -341,7 +379,26 @@ th { background-color: #f8fafc; font-weight: 600; }
     loadingOverlay.style.display = 'none';
   }
 
-  // Cadastrar Ônibus
+  // Atualiza contadores do painel (frota e sem campanha)
+  function updateDashboardStats() {
+    statFleetCount.textContent = fleet.length;
+
+    const now = new Date();
+    let busesWithActiveCampaign = new Set();
+
+    // Identificar ônibus que possuem ao menos uma campanha válida (não vencida)
+    for (const busNum of fleet) {
+      const history = busHistory[busNum] || [];
+      const hasActive = history.some(item => new Date(item.endDate) >= now);
+      if (hasActive) {
+        busesWithActiveCampaign.add(busNum);
+      }
+    }
+
+    const withoutCampaignCount = fleet.length - busesWithActiveCampaign.size;
+    statWithoutCampaign.textContent = withoutCampaignCount;
+  }
+
   fleetForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const num = busNumberInput.value.trim();
@@ -361,7 +418,6 @@ th { background-color: #f8fafc; font-weight: 600; }
     }
   });
 
-  // Remover Ônibus
   window.removeBusFromFleet = async function(num) {
     if (confirm(`Deseja remover o ônibus ${num} da frota?`)) {
       try {
@@ -374,7 +430,6 @@ th { background-color: #f8fafc; font-weight: 600; }
   }
 
   function renderFleet() {
-    fleetCount.textContent = fleet.length;
     if (fleet.length === 0) {
       fleetListContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Nenhum ônibus cadastrado ainda.</span>';
       return;
@@ -422,7 +477,7 @@ th { background-color: #f8fafc; font-weight: 600; }
     checkboxes.forEach(chk => chk.checked = select);
   }
 
-  // Cadastrar Campanha
+  // Cadastrar Campanha com Verificação de Vigência
   campaignForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('campaignName').value;
@@ -434,6 +489,26 @@ th { background-color: #f8fafc; font-weight: 600; }
     if (busList.length === 0) {
       alert('Selecione pelo menos um ônibus para aplicar a campanha.');
       return;
+    }
+
+    // Verificar se algum dos ônibus selecionados possui campanha ativa válida
+    const now = new Date();
+    let conflictingBuses = [];
+    for (const busNum of busList) {
+      const history = busHistory[busNum] || [];
+      const activeRecord = history.find(item => new Date(item.endDate) >= now);
+      if (activeRecord) {
+        conflictingBuses.push(`Ônibus ${busNum} (Campanha ativa: "${activeRecord.campaignName}")`);
+      }
+    }
+
+    if (conflictingBuses.length > 0) {
+      const message = "Os seguintes veículos selecionados já possuem uma campanha ativa dentro do prazo:\n\n" + 
+                      conflictingBuses.join("\n") + 
+                      "\n\nDeseja realmente substituir a campanha atual destes veículos?";
+      if (!confirm(message)) {
+        return; // Cancela o cadastro se o usuário não confirmar
+      }
     }
 
     const btnSave = document.getElementById('btnSaveCampaign');
@@ -488,10 +563,17 @@ th { background-color: #f8fafc; font-weight: 600; }
   function getStatusBadge(endDateStr) {
     const now = new Date();
     const endDate = new Date(endDateStr);
-    const diffDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return '<span class="badge badge-expired">Vencido</span>';
-    if (diffDays <= 2) return '<span class="badge badge-warning">A vencer</span>';
-    return '<span class="badge badge-ok">Dentro do prazo</span>';
+    const diffTime = endDate - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return '<span class="badge badge-expired">Vencido</span>';
+    } else if (diffDays <= 5) {
+      const dayText = diffDays === 1 ? '1 dia' : `${diffDays} dias`;
+      return `<span class="badge badge-warning">Expira em ${dayText}</span>`;
+    } else {
+      return '<span class="badge badge-ok">Dentro do prazo</span>';
+    }
   }
 
   function renderCampaignsTable() {
