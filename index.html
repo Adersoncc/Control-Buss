@@ -69,7 +69,7 @@ th { background-color: #f8fafc; font-weight: 600; }
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 100px;
+  max-height: 150px;
   overflow-y: auto;
   padding: 8px;
   background: #f8fafc;
@@ -101,6 +101,58 @@ th { background-color: #f8fafc; font-weight: 600; }
   font-size: 0.9rem;
   margin-bottom: 10px;
 }
+
+/* Estilos do Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 15px;
+}
+.modal-content {
+  background: var(--card-bg);
+  padding: 24px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+.modal-header h2 {
+  font-size: 1.15rem;
+  margin-bottom: 0;
+  border: none;
+  padding: 0;
+}
+.close-modal {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: auto;
+}
+.close-modal:hover {
+  color: #1e293b;
+}
 </style>
 </head>
 <body>
@@ -109,28 +161,44 @@ th { background-color: #f8fafc; font-weight: 600; }
   <h1>Controle de Campanhas em Veículos</h1>
   <div id="loadingOverlay">Conectando ao banco de dados na nuvem...</div>
 
-  <div class="card">
-    <h2>1. Cadastro de Frota de Ônibus</h2>
-    <form id="fleetForm">
-      <div class="form-group">
-        <label for="busNumberInput">Número do Ônibus</label>
-        <div class="search-box" style="margin-bottom: 0;">
-          <input type="text" id="busNumberInput" placeholder="Ex: 11.502 ou 17.008" required>
-          <button type="submit">Cadastrar Ônibus</button>
-        </div>
+  <!-- Botão Principal para Abrir o Modal de Frota -->
+  <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <h2 style="margin-bottom: 4px; border: none; padding: 0;">Gestão da Frota</h2>
+      <p style="color: #64748b; font-size: 0.9rem;">Total de ônibus cadastrados: <span id="fleetCount">0</span></p>
+    </div>
+    <button type="button" onclick="openFleetModal()" style="width: auto; margin-top: 0;">+ Adicionar Veículo à Frota</button>
+  </div>
+
+  <!-- Modal de Cadastro e Gerenciamento de Frota -->
+  <div id="fleetModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Gerenciar Frota de Ônibus</h2>
+        <button type="button" class="close-modal" onclick="closeFleetModal()">&times;</button>
       </div>
-    </form>
-    
-    <div style="margin-top: 16px;">
-      <label>Ônibus Cadastrados na Frota (<span id="fleetCount">0</span>):</label>
-      <div id="fleetListContainer" class="fleet-badge-list">
-        <span style="color: #666; font-size: 0.9rem;">Carregando frota...</span>
+      
+      <form id="fleetForm">
+        <div class="form-group">
+          <label for="busNumberInput">Número do Ônibus</label>
+          <div class="search-box" style="margin-bottom: 0;">
+            <input type="text" id="busNumberInput" placeholder="Ex: 11.502 ou 17.008" required>
+            <button type="submit">Cadastrar</button>
+          </div>
+        </div>
+      </form>
+      
+      <div style="margin-top: 20px;">
+        <label>Ônibus Cadastrados:</label>
+        <div id="fleetListContainer" class="fleet-badge-list" style="margin-top: 8px;">
+          <span style="color: #666; font-size: 0.9rem;">Carregando frota...</span>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="card">
-    <h2>2. Cadastrar Nova Campanha</h2>
+    <h2>1. Cadastrar Nova Campanha</h2>
     <form id="campaignForm">
       <div class="form-group">
         <label for="campaignName">Nome da Campanha</label>
@@ -157,12 +225,12 @@ th { background-color: #f8fafc; font-weight: 600; }
         </div>
       </div>
 
-      <button type="submit">Salvar e Aplicar Campanha</button>
+      <button type="submit" id="btnSaveCampaign">Salvar e Aplicar Campanha</button>
     </form>
   </div>
 
   <div class="card">
-    <h2>3. Consultar Histórico do Veículo</h2>
+    <h2>2. Consultar Histórico do Veículo</h2>
     <div class="search-box">
       <input type="text" id="searchBusNumber" placeholder="Nº do ônibus (ex: 11.502)">
       <button type="button" onclick="searchBusHistory()">Buscar</button>
@@ -171,7 +239,7 @@ th { background-color: #f8fafc; font-weight: 600; }
   </div>
 
   <div class="card">
-    <h2>4. Campanhas Registradas</h2>
+    <h2>3. Campanhas Registradas</h2>
     <div class="table-responsive">
       <table>
         <thead>
@@ -194,14 +262,13 @@ th { background-color: #f8fafc; font-weight: 600; }
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  // TODO: Substitua com as suas credenciais do Firebase (Painel do Firebase -> Configurações do Projeto)
   const firebaseConfig = {
-  apiKey: "AIzaSyC63Q1eBXVFz5CkLxxWMAfDN6uxWwy_oU8",
-  authDomain: "controle-de-campanhas-55ae2.firebaseapp.com",
-  projectId: "controle-de-campanhas-55ae2",
-  storageBucket: "controle-de-campanhas-55ae2.firebasestorage.app",
-  messagingSenderId: "923348616466",
-  appId: "1:923348616466:web:8bad212b45af31028ddfcb"
+    apiKey: "AIzaSyC63Q1eBXVFz5CkLxxWMAfDN6uxWwy_oU8",
+    authDomain: "controle-de-campanhas-55ae2.firebaseapp.com",
+    projectId: "controle-de-campanhas-55ae2",
+    storageBucket: "controle-de-campanhas-55ae2.firebasestorage.app",
+    messagingSenderId: "923348616466",
+    appId: "1:923348616466:web:8bad212b45af31028ddfcb"
   };
 
   const app = initializeApp(firebaseConfig);
@@ -218,10 +285,26 @@ th { background-color: #f8fafc; font-weight: 600; }
   const campaignForm = document.getElementById('campaignForm');
   const busSelectionContainer = document.getElementById('busSelectionContainer');
   const loadingOverlay = document.getElementById('loadingOverlay');
+  const fleetModal = document.getElementById('fleetModal');
+
+  // Funções de controle do Modal
+  window.openFleetModal = function() {
+    fleetModal.style.display = 'flex';
+  }
+
+  window.closeFleetModal = function() {
+    fleetModal.style.display = 'none';
+  }
+
+  // Fechar o modal clicando fora dele
+  window.onclick = function(event) {
+    if (event.target === fleetModal) {
+      closeFleetModal();
+    }
+  }
 
   // Inicializar escutas em tempo real do Firestore
   function initRealtimeSync() {
-    // 1. Sincronizar Frota
     onSnapshot(collection(db, "fleet"), (snapshot) => {
       fleet = [];
       snapshot.forEach((docSnap) => {
@@ -237,7 +320,6 @@ th { background-color: #f8fafc; font-weight: 600; }
       loadingOverlay.style.color = "#dc2626";
     });
 
-    // 2. Sincronizar Campanhas
     const qCampaigns = query(collection(db, "campaigns"), orderBy("createdAt", "desc"));
     onSnapshot(qCampaigns, (snapshot) => {
       campaigns = [];
@@ -247,7 +329,6 @@ th { background-color: #f8fafc; font-weight: 600; }
       renderCampaignsTable();
     });
 
-    // 3. Sincronizar Histórico
     onSnapshot(collection(db, "history"), (snapshot) => {
       busHistory = {};
       snapshot.forEach((docSnap) => {
@@ -272,7 +353,6 @@ th { background-color: #f8fafc; font-weight: 600; }
     }
 
     try {
-      // Usamos o número do ônibus como ID do documento no Firestore
       await setDoc(doc(db, "fleet", num), { number: num });
       busNumberInput.value = '';
     } catch (error) {
@@ -309,7 +389,7 @@ th { background-color: #f8fafc; font-weight: 600; }
 
   function renderBusCheckboxes(filterText = '') {
     if (fleet.length === 0) {
-      busSelectionContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Cadastre ônibus na frota acima primeiro.</span>';
+      busSelectionContainer.innerHTML = '<span style="color: #666; font-size: 0.9rem;">Cadastre ônibus na frota usando o botão acima primeiro.</span>';
       return;
     }
 
@@ -356,6 +436,10 @@ th { background-color: #f8fafc; font-weight: 600; }
       return;
     }
 
+    const btnSave = document.getElementById('btnSaveCampaign');
+    btnSave.textContent = "Salvando...";
+    btnSave.disabled = true;
+
     const startDate = new Date();
     const endDate = new Date();
     endDate.setDate(startDate.getDate() + validity);
@@ -372,10 +456,8 @@ th { background-color: #f8fafc; font-weight: 600; }
     };
 
     try {
-      // Salvar Campanha
       await setDoc(doc(db, "campaigns", campaignId), campaignData);
 
-      // Atualizar Histórico de cada ônibus na nuvem
       for (const busNum of busList) {
         const historyRef = doc(db, "history", busNum);
         const historySnap = await getDoc(historyRef);
@@ -397,6 +479,9 @@ th { background-color: #f8fafc; font-weight: 600; }
     } catch (error) {
       console.error("Erro ao salvar campanha:", error);
       alert("Erro ao registrar campanha.");
+    } finally {
+      btnSave.textContent = "Salvar e Aplicar Campanha";
+      btnSave.disabled = false;
     }
   });
 
@@ -463,7 +548,6 @@ th { background-color: #f8fafc; font-weight: 600; }
     container.innerHTML = html;
   }
 
-  // Inicializa a sincronização
   initRealtimeSync();
 </script>
 
