@@ -1,4 +1,22 @@
-// Simulação de Autenticação
+// Variáveis globais de dados
+let frotas = [];
+let campanhas = [];
+let db = null;
+let fbModules = null;
+
+// Aguarda o Firebase carregar da página HTML
+window.addEventListener('firebase-pronto', () => {
+    db = window.db;
+    fbModules = window.firebaseModules;
+    
+    document.getElementById('db-status').innerHTML = `<span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> Firebase Conectado`;
+    document.getElementById('db-status').className = "text-xs bg-green-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1";
+
+    // Iniciar escuta em tempo real do banco de dados
+    carregarDadosEmTempoReal();
+});
+
+// Simulação de Autenticação local (ou você pode integrar com Firebase Auth futuramente)
 function verificarAuth() {
     const logado = localStorage.getItem('control_buss_auth');
     if (!logado) {
@@ -23,17 +41,6 @@ function fazerLogout() {
     location.reload();
 }
 
-// Dados locais simulados
-let frotas = JSON.parse(localStorage.getItem('control_buss_frota')) || [
-    { id: '1', prefixo: '1001', linha: 'Terminal Cohatrac / Centro', status: 'Operando', campanha: 'Campanha Institucional' },
-    { id: '2', prefixo: '1025', linha: 'Cohab / Vinhais', status: 'Em Manutenção', campanha: 'Nenhuma' },
-    { id: '3', prefixo: '2040', linha: 'São Cristóvão / Deodoro', status: 'Operando', campanha: 'Nenhuma' }
-];
-
-let campanhas = JSON.parse(localStorage.getItem('control_buss_campanhas')) || [
-    { id: 'c1', nome: 'Campanha Institucional', veiculos: ['1001'], inicio: '2026-08-01', vencimento: '2026-12-31' }
-];
-
 // Sistema de Toast Notifications
 function mostrarToast(mensagem, tipo = 'sucesso') {
     const container = document.getElementById('toast-container');
@@ -43,17 +50,36 @@ function mostrarToast(mensagem, tipo = 'sucesso') {
     toast.innerHTML = `<i class="fa-solid ${tipo === 'sucesso' ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> <span>${mensagem}</span>`;
     container.appendChild(toast);
 
-    setTimeout(() => {
-        toast.classList.remove('translate-y-2', 'opacity-0');
-    }, 10);
-
+    setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
     setTimeout(() => {
         toast.classList.add('translate-y-2', 'opacity-0');
         setTimeout(() => toast.remove(), 300);
     }, 3500);
 }
 
-// Inicialização do Painel
+// SINCRONIZAÇÃO EM TEMPO REAL COM O FIRESTORE
+function carregarDadosEmTempoReal() {
+    if (!db) return;
+
+    // Escutar coleção 'frotas'
+    fbModules.onSnapshot(fbModules.collection(db, 'frotas'), (snapshot) => {
+        frotas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        atualizarDashboard();
+    }, (error) => {
+        console.error("Erro ao carregar frotas:", error);
+        mostrarToast("Erro ao sincronizar frota com a nuvem.", "erro");
+    });
+
+    // Escutar coleção 'campanhas'
+    fbModules.onSnapshot(fbModules.collection(db, 'campanhas'), (snapshot) => {
+        campanhas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        atualizarDashboard();
+    }, (error) => {
+        console.error("Erro ao carregar campanhas:", error);
+    });
+}
+
+// Atualizar Indicadores e Tabelas
 function atualizarDashboard() {
     document.getElementById('stat-frota-total').innerText = frotas.length;
     const operando = frotas.filter(f => f.status === 'Operando').length;
@@ -66,15 +92,12 @@ function atualizarDashboard() {
 
     renderizarTabelaFrota();
     renderizarTabelaCampanhas();
-    
-    localStorage.setItem('control_buss_frota', JSON.stringify(frotas));
-    localStorage.setItem('control_buss_campanhas', JSON.stringify(campanhas));
 }
 
 function renderizarTabelaFrota(dados = frotas) {
     const tbody = document.getElementById('tabela-frota');
     if (dados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-gray-400">Nenhum veículo encontrado.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-gray-400">Nenhum veículo encontrado na nuvem.</td></tr>`;
         return;
     }
 
@@ -102,7 +125,7 @@ function renderizarTabelaFrota(dados = frotas) {
 function renderizarTabelaCampanhas() {
     const tbody = document.getElementById('tabela-campanhas');
     if (campanhas.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-gray-400">Nenhuma campanha cadastrada.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-gray-400">Nenhuma campanha registrada na nuvem.</td></tr>`;
         return;
     }
 
@@ -117,9 +140,9 @@ function renderizarTabelaCampanhas() {
         return `
             <tr class="hover:bg-gray-50 transition">
                 <td class="py-3 px-6 font-semibold text-gray-900">${c.nome}</td>
-                <td class="py-3 px-6">${c.veiculos.length} veículos</td>
-                <td class="py-3 px-6 text-gray-500">${c.inicio.split('-').reverse().join('/')}</td>
-                <td class="py-3 px-6 text-gray-500">${c.vencimento.split('-').reverse().join('/')}</td>
+                <td class="py-3 px-6">${c.veiculos ? c.veiculos.length : 0} veículos</td>
+                <td class="py-3 px-6 text-gray-500">${c.inicio ? c.inicio.split('-').reverse().join('/') : ''}</td>
+                <td class="py-3 px-6 text-gray-500">${c.vencimento ? c.vencimento.split('-').reverse().join('/') : ''}</td>
                 <td class="py-3 px-6">${statusBadge}</td>
                 <td class="py-3 px-6 text-right">
                     <button onclick="excluirCampanha('${c.id}')" class="text-red-600 hover:text-red-800" title="Excluir"><i class="fa-solid fa-trash"></i></button>
@@ -135,7 +158,7 @@ function filtrarFrota() {
     renderizarTabelaFrota(filtrados);
 }
 
-// Modais de Ônibus
+// Operações de Ônibus (Firebase)
 function abrirModalOnibus(id = null) {
     document.getElementById('form-onibus').reset();
     document.getElementById('onibus-id').value = '';
@@ -157,39 +180,53 @@ function fecharModalOnibus() {
     document.getElementById('modal-onibus').classList.add('hidden');
 }
 
-function salvarOnibus(e) {
+async function salvarOnibus(e) {
     e.preventDefault();
+    if (!db) return alert('Firebase não inicializado.');
+
     const id = document.getElementById('onibus-id').value;
     const prefixo = document.getElementById('onibus-prefixo').value;
     const linha = document.getElementById('onibus-linha').value;
     const status = document.getElementById('onibus-status').value;
 
-    if (id) {
-        frotas = frotas.map(f => f.id === id ? { ...f, prefixo, linha, status } : f);
-        mostrarToast('Veículo atualizado com sucesso!');
-    } else {
-        const novo = { id: Date.now().toString(), prefixo, linha, status, campanha: 'Nenhuma' };
-        frotas.push(novo);
-        mostrarToast('Veículo cadastrado com sucesso!');
+    try {
+        if (id) {
+            const docRef = fbModules.doc(db, 'frotas', id);
+            await fbModules.updateDoc(docRef, { prefixo, linha, status });
+            mostrarToast('Veículo atualizado na nuvem!');
+        } else {
+            await fbModules.addDoc(fbModules.collection(db, 'frotas'), {
+                prefixo,
+                linha,
+                status,
+                campanha: 'Nenhuma'
+            });
+            mostrarToast('Veículo cadastrado na nuvem!');
+        }
+        fecharModalOnibus();
+    } catch (error) {
+        console.error("Erro ao salvar ônibus:", error);
+        mostrarToast('Erro ao salvar no Firebase.', 'erro');
     }
-
-    fecharModalOnibus();
-    atualizarDashboard();
 }
 
 function editarOnibus(id) {
     abrirModalOnibus(id);
 }
 
-function excluirOnibus(id) {
-    if (confirm('Deseja realmente excluir este veículo?')) {
-        frotas = frotas.filter(f => f.id !== id);
-        mostrarToast('Veículo excluído.', 'erro');
-        atualizarDashboard();
+async function excluirOnibus(id) {
+    if (confirm('Deseja realmente excluir este veículo da nuvem?')) {
+        try {
+            await fbModules.deleteDoc(fbModules.doc(db, 'frotas', id));
+            mostrarToast('Veículo excluído.', 'erro');
+        } catch (error) {
+            console.error("Erro ao excluir:", error);
+            mostrarToast('Erro ao excluir veículo.', 'erro');
+        }
     }
 }
 
-// Modais de Campanha
+// Operações de Campanha (Firebase)
 function abrirModalCampanha() {
     document.getElementById('campanha-nome').value = '';
     document.getElementById('campanha-inicio').value = '';
@@ -210,8 +247,10 @@ function fecharModalCampanha() {
     document.getElementById('modal-campanha').classList.add('hidden');
 }
 
-function salvarCampanha(e) {
+async function salvarCampanha(e) {
     e.preventDefault();
+    if (!db) return;
+
     const nome = document.getElementById('campanha-nome').value;
     const inicio = document.getElementById('campanha-inicio').value;
     const vencimento = document.getElementById('campanha-vencimento').value;
@@ -224,42 +263,50 @@ function salvarCampanha(e) {
         return;
     }
 
-    const novaCampanha = {
-        id: Date.now().toString(),
-        nome,
-        inicio,
-        vencimento,
-        veiculos: veiculosSelecionados
-    };
+    try {
+        // Salva campanha no Firestore
+        await fbModules.addDoc(fbModules.collection(db, 'campanhas'), {
+            nome,
+            inicio,
+            vencimento,
+            veiculos: veiculosSelecionados
+        });
 
-    campanhas.push(novaCampanha);
-
-    frotas = frotas.map(f => {
-        if (veiculosSelecionados.includes(f.prefixo)) {
-            return { ...f, campanha: nome };
+        // Atualiza a campanha nos ônibus correspondentes na nuvem
+        for (let f of frotas) {
+            if (veiculosSelecionados.includes(f.prefixo)) {
+                const docRef = fbModules.doc(db, 'frotas', f.id);
+                await fbModules.updateDoc(docRef, { campanha: nome });
+            }
         }
-        return f;
-    });
 
-    fecharModalCampanha();
-    mostrarToast('Campanha criada com sucesso!');
-    atualizarDashboard();
+        fecharModalCampanha();
+        mostrarToast('Campanha criada na nuvem!');
+    } catch (error) {
+        console.error("Erro ao salvar campanha:", error);
+        mostrarToast('Erro ao criar campanha.', 'erro');
+    }
 }
 
-function excluirCampanha(id) {
+async function excluirCampanha(id) {
     if (confirm('Deseja excluir esta campanha?')) {
-        const camp = campanhas.find(c => c.id === id);
-        if (camp) {
-            frotas = frotas.map(f => {
-                if (camp.veiculos.includes(f.prefixo)) {
-                    return { ...f, campanha: 'Nenhuma' };
+        try {
+            const camp = campanhas.find(c => c.id === id);
+            if (camp && camp.veiculos) {
+                // Remove a tag de campanha dos ônibus afetados
+                for (let f of frotas) {
+                    if (camp.veiculos.includes(f.prefixo)) {
+                        const docRef = fbModules.doc(db, 'frotas', f.id);
+                        await fbModules.updateDoc(docRef, { campanha: 'Nenhuma' });
+                    }
                 }
-                return f;
-            });
+            }
+            await fbModules.deleteDoc(fbModules.doc(db, 'campanhas', id));
+            mostrarToast('Campanha removida.', 'erro');
+        } catch (error) {
+            console.error("Erro ao excluir campanha:", error);
+            mostrarToast('Erro ao remover campanha.', 'erro');
         }
-        campanhas = campanhas.filter(c => c.id !== id);
-        mostrarToast('Campanha removida.', 'erro');
-        atualizarDashboard();
     }
 }
 
@@ -279,5 +326,5 @@ function exportarExcel() {
     mostrarToast('Relatório exportado com sucesso!');
 }
 
-// Inicializa o painel ao carregar o script
-atualizarDashboard();
+// Inicia verificação de autenticação ao carregar
+verificarAuth();
