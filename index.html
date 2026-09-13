@@ -13,7 +13,7 @@
     <!-- CSS Personalizado -->
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans antialiased" onload="verificarAuth()">
+<body class="bg-gray-50 text-gray-800 font-sans antialiased">
 
     <!-- MODAL DE LOGIN -->
     <div id="modal-login" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center hidden">
@@ -46,8 +46,8 @@
             <div class="flex items-center space-x-3">
                 <i class="fa-solid fa-bus-simple text-2xl"></i>
                 <h1 class="text-xl font-bold tracking-wide">Control-Buss</h1>
-                <span id="db-status" class="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> Conectado
+                <span id="db-status" class="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> Conectando...
                 </span>
             </div>
             <div class="flex items-center space-x-4">
@@ -241,6 +241,30 @@
             </form>
         </div>
     </div>
+
+    <!-- Firebase SDK (Versão 9 Modular) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        // COLE A SUA CONFIGURAÇÃO DO FIREBASE ABAIXO:
+        const firebaseConfig = {
+            apiKey: "SUA_API_KEY",
+            authDomain: "SEU_PROJETO.firebaseapp.com",
+            projectId: "SEU_PROJETO_ID",
+            storageBucket: "SEU_PROJETO.appspot.com",
+            messagingSenderId: "SUA_SENDER_ID",
+            appId: "SUA_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.db = db;
+        window.firebaseModules = { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot };
+        
+        window.dispatchEvent(new Event('firebase-pronto'));
+    </script>
 
     <!-- Script Principal -->
     <script src="script.js"></script>
