@@ -12,11 +12,11 @@ window.addEventListener('firebase-pronto', () => {
     document.getElementById('db-status').innerHTML = `<span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> Firebase Conectado`;
     document.getElementById('db-status').className = "text-xs bg-green-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1";
 
-    // Iniciar escuta em tempo real do banco de dados
+    // Iniciar escuta em tempo real do banco de dados (usando fleet e campaigns)
     carregarDadosEmTempoReal();
 });
 
-// Simulação de Autenticação local (ou você pode integrar com Firebase Auth futuramente)
+// Simulação de Autenticação local
 function verificarAuth() {
     const logado = localStorage.getItem('control_buss_auth');
     if (!logado) {
@@ -57,25 +57,25 @@ function mostrarToast(mensagem, tipo = 'sucesso') {
     }, 3500);
 }
 
-// SINCRONIZAÇÃO EM TEMPO REAL COM O FIRESTORE
+// SINCRONIZAÇÃO EM TEMPO REAL COM O FIRESTORE (fleet e campaigns)
 function carregarDadosEmTempoReal() {
     if (!db) return;
 
-    // Escutar coleção 'frotas'
-    fbModules.onSnapshot(fbModules.collection(db, 'frotas'), (snapshot) => {
+    // Escutar coleção 'fleet' (Frota)
+    fbModules.onSnapshot(fbModules.collection(db, 'fleet'), (snapshot) => {
         frotas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         atualizarDashboard();
     }, (error) => {
-        console.error("Erro ao carregar frotas:", error);
+        console.error("Erro ao carregar fleet:", error);
         mostrarToast("Erro ao sincronizar frota com a nuvem.", "erro");
     });
 
-    // Escutar coleção 'campanhas'
-    fbModules.onSnapshot(fbModules.collection(db, 'campanhas'), (snapshot) => {
+    // Escutar coleção 'campaigns' (Campanhas)
+    fbModules.onSnapshot(fbModules.collection(db, 'campaigns'), (snapshot) => {
         campanhas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         atualizarDashboard();
     }, (error) => {
-        console.error("Erro ao carregar campanhas:", error);
+        console.error("Erro ao carregar campaigns:", error);
     });
 }
 
@@ -109,9 +109,9 @@ function renderizarTabelaFrota(dados = frotas) {
 
         return `
             <tr class="hover:bg-gray-50 transition">
-                <td class="py-3 px-6 font-semibold text-gray-900">${f.prefixo}</td>
-                <td class="py-3 px-6 text-gray-600">${f.linha}</td>
-                <td class="py-3 px-6"><span class="px-2.5 py-1 rounded-full text-xs font-medium ${badgeStatus}">${f.status}</span></td>
+                <td class="py-3 px-6 font-semibold text-gray-900">${f.prefixo || f.id}</td>
+                <td class="py-3 px-6 text-gray-600">${f.linha || f.line || 'Não informada'}</td>
+                <td class="py-3 px-6"><span class="px-2.5 py-1 rounded-full text-xs font-medium ${badgeStatus || 'bg-gray-100 text-gray-700'}">${f.status || 'Operando'}</span></td>
                 <td class="py-3 px-6"><span class="text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">${f.campanha || 'Nenhuma'}</span></td>
                 <td class="py-3 px-6 text-right space-x-2">
                     <button onclick="editarOnibus('${f.id}')" class="text-blue-600 hover:text-blue-800" title="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -132,17 +132,17 @@ function renderizarTabelaCampanhas() {
     const hoje = new Date().toISOString().split('T')[0];
 
     tbody.innerHTML = campanhas.map(c => {
-        const vencida = c.vencimento < hoje;
+        const vencida = c.vencimento && c.vencimento < hoje;
         const statusBadge = vencida 
             ? `<span class="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-medium">Encerrada</span>`
             : `<span class="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-medium">Ativa</span>`;
 
         return `
             <tr class="hover:bg-gray-50 transition">
-                <td class="py-3 px-6 font-semibold text-gray-900">${c.nome}</td>
+                <td class="py-3 px-6 font-semibold text-gray-900">${c.nome || c.name || 'Campanha'}</td>
                 <td class="py-3 px-6">${c.veiculos ? c.veiculos.length : 0} veículos</td>
-                <td class="py-3 px-6 text-gray-500">${c.inicio ? c.inicio.split('-').reverse().join('/') : ''}</td>
-                <td class="py-3 px-6 text-gray-500">${c.vencimento ? c.vencimento.split('-').reverse().join('/') : ''}</td>
+                <td class="py-3 px-6 text-gray-500">${c.inicio ? c.inicio.split('-').reverse().join('/') : '-'}</td>
+                <td class="py-3 px-6 text-gray-500">${c.vencimento ? c.vencimento.split('-').reverse().join('/') : '-'}</td>
                 <td class="py-3 px-6">${statusBadge}</td>
                 <td class="py-3 px-6 text-right">
                     <button onclick="excluirCampanha('${c.id}')" class="text-red-600 hover:text-red-800" title="Excluir"><i class="fa-solid fa-trash"></i></button>
@@ -154,11 +154,11 @@ function renderizarTabelaCampanhas() {
 
 function filtrarFrota() {
     const termo = document.getElementById('filtro-frota').value.toLowerCase();
-    const filtrados = frotas.filter(f => f.prefixo.toLowerCase().includes(termo) || f.linha.toLowerCase().includes(termo));
+    const filtrados = frotas.filter(f => (f.prefixo && f.prefixo.toLowerCase().includes(termo)) || (f.linha && f.linha.toLowerCase().includes(termo)));
     renderizarTabelaFrota(filtrados);
 }
 
-// Operações de Ônibus (Firebase)
+// Operações de Ônibus (Fleet)
 function abrirModalOnibus(id = null) {
     document.getElementById('form-onibus').reset();
     document.getElementById('onibus-id').value = '';
@@ -167,9 +167,9 @@ function abrirModalOnibus(id = null) {
         const o = frotas.find(item => item.id === id);
         if (o) {
             document.getElementById('onibus-id').value = o.id;
-            document.getElementById('onibus-prefixo').value = o.prefixo;
-            document.getElementById('onibus-linha').value = o.linha;
-            document.getElementById('onibus-status').value = o.status;
+            document.getElementById('onibus-prefixo').value = o.prefixo || '';
+            document.getElementById('onibus-linha').value = o.linha || '';
+            document.getElementById('onibus-status').value = o.status || 'Operando';
             document.getElementById('titulo-modal-onibus').innerText = 'Editar Ônibus';
         }
     }
@@ -191,11 +191,11 @@ async function salvarOnibus(e) {
 
     try {
         if (id) {
-            const docRef = fbModules.doc(db, 'frotas', id);
+            const docRef = fbModules.doc(db, 'fleet', id);
             await fbModules.updateDoc(docRef, { prefixo, linha, status });
             mostrarToast('Veículo atualizado na nuvem!');
         } else {
-            await fbModules.addDoc(fbModules.collection(db, 'frotas'), {
+            await fbModules.addDoc(fbModules.collection(db, 'fleet'), {
                 prefixo,
                 linha,
                 status,
@@ -217,7 +217,7 @@ function editarOnibus(id) {
 async function excluirOnibus(id) {
     if (confirm('Deseja realmente excluir este veículo da nuvem?')) {
         try {
-            await fbModules.deleteDoc(fbModules.doc(db, 'frotas', id));
+            await fbModules.deleteDoc(fbModules.doc(db, 'fleet', id));
             mostrarToast('Veículo excluído.', 'erro');
         } catch (error) {
             console.error("Erro ao excluir:", error);
@@ -226,7 +226,7 @@ async function excluirOnibus(id) {
     }
 }
 
-// Operações de Campanha (Firebase)
+// Operações de Campanha (Campaigns)
 function abrirModalCampanha() {
     document.getElementById('campanha-nome').value = '';
     document.getElementById('campanha-inicio').value = '';
@@ -235,8 +235,8 @@ function abrirModalCampanha() {
     const container = document.getElementById('lista-checkbox-onibus');
     container.innerHTML = frotas.map(f => `
         <label class="flex items-center space-x-2 cursor-pointer">
-            <input type="checkbox" name="veiculos_campanha" value="${f.prefixo}" class="rounded text-blue-600 focus:ring-blue-500">
-            <span>Prefixo: <strong>${f.prefixo}</strong> (${f.linha})</span>
+            <input type="checkbox" name="veiculos_campanha" value="${f.prefixo || f.id}" class="rounded text-blue-600 focus:ring-blue-500">
+            <span>Prefixo: <strong>${f.prefixo || f.id}</strong> (${f.linha || ''})</span>
         </label>
     `).join('') || '<p class="text-gray-400">Cadastre ônibus primeiro.</p>';
 
@@ -264,18 +264,16 @@ async function salvarCampanha(e) {
     }
 
     try {
-        // Salva campanha no Firestore
-        await fbModules.addDoc(fbModules.collection(db, 'campanhas'), {
+        await fbModules.addDoc(fbModules.collection(db, 'campaigns'), {
             nome,
             inicio,
             vencimento,
             veiculos: veiculosSelecionados
         });
 
-        // Atualiza a campanha nos ônibus correspondentes na nuvem
         for (let f of frotas) {
             if (veiculosSelecionados.includes(f.prefixo)) {
-                const docRef = fbModules.doc(db, 'frotas', f.id);
+                const docRef = fbModules.doc(db, 'fleet', f.id);
                 await fbModules.updateDoc(docRef, { campanha: nome });
             }
         }
@@ -293,15 +291,14 @@ async function excluirCampanha(id) {
         try {
             const camp = campanhas.find(c => c.id === id);
             if (camp && camp.veiculos) {
-                // Remove a tag de campanha dos ônibus afetados
                 for (let f of frotas) {
                     if (camp.veiculos.includes(f.prefixo)) {
-                        const docRef = fbModules.doc(db, 'frotas', f.id);
+                        const docRef = fbModules.doc(db, 'fleet', f.id);
                         await fbModules.updateDoc(docRef, { campanha: 'Nenhuma' });
                     }
                 }
             }
-            await fbModules.deleteDoc(fbModules.doc(db, 'campanhas', id));
+            await fbModules.deleteDoc(fbModules.doc(db, 'campaigns', id));
             mostrarToast('Campanha removida.', 'erro');
         } catch (error) {
             console.error("Erro ao excluir campanha:", error);
@@ -313,10 +310,10 @@ async function excluirCampanha(id) {
 // Exportar para Excel (.xlsx)
 function exportarExcel() {
     const wsData = frotas.map(f => ({
-        'Prefixo': f.prefixo,
-        'Nome da Linha': f.linha,
-        'Status Operacional': f.status,
-        'Campanha Atual': f.campanha
+        'Prefixo': f.prefixo || f.id,
+        'Nome da Linha': f.linha || '',
+        'Status Operacional': f.status || 'Operando',
+        'Campanha Atual': f.campanha || 'Nenhuma'
     }));
 
     const wb = XLSX.utils.book_new();
