@@ -4,3 +4,17 @@ body {
 }
 
 /* Estilos adicionais personalizados se necessário */
+/* Container que restringe a altura e cria a barra de rolagem */
+.table-scroll-container {
+    max-height: 310px; /* Altura ideal para exibir aprox. 5 linhas de dados */
+    overflow-y: auto;  /* Ativa a rolagem vertical apenas quando necessário */
+    position: relative;
+}
+
+/* Mantém o cabeçalho grudado no topo ao rolar */
+.table-scroll-container table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #ffffff; /* Garante que o fundo não fique transparente sobre os textos */
+}
