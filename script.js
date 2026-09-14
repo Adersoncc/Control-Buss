@@ -24,9 +24,15 @@ window.carregarDados = async function() {
         const snapOnibus = await getDocs(collection(db, "onibus"));
         cacheOnibus = snapOnibus.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        // Ordenar Ônibus por Prefixo numericamente
+        cacheOnibus.sort((a, b) => Number(a.prefixo) - Number(b.prefixo));
+
         // Carregar Campanhas
         const snapCampanhas = await getDocs(collection(db, "campanhas"));
         cacheCampanhas = snapCampanhas.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Ordenar Campanhas: As mais recentes (ou novas IDs/cadastros) aparecem no topo
+        cacheCampanhas.reverse();
 
         atualizarMetricas();
         renderizarTabelaOnibus(cacheOnibus);
@@ -242,12 +248,13 @@ window.salvarCampanha = async function(event) {
     }
 
     try {
+        // Salva a nova campanha no Firebase
         await addDoc(collection(db, "campanhas"), { nome, inicio, fim });
 
-        for (let prefixo of prefixosSelecionados) {
-            const onibusObj = cacheOnibus.find(o => o.prefixo === prefixo);
-            if (onibusObj) {
-                await updateDoc(doc(db, "onibus", onibusObj.id), { campanha: nome });
+        // Atualiza os ônibus selecionados. Se já tiverem outra campanha, ela é substituída pela nova.
+        for (let o of cacheOnibus) {
+            if (prefixosSelecionados.includes(o.prefixo)) {
+                await updateDoc(doc(db, "onibus", o.id), { campanha: nome });
             }
         }
 
