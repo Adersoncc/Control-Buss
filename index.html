@@ -228,5 +228,48 @@
 
     <!-- SCRIPT JS -->
     <script type="module" src="script.js"></script>
+    <!-- MODAL: DETALHES DA CAMPANHA -->
+<div id="modal-detalhes-campanha" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden transform transition-all">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+            <h3 id="modal-detalhes-titulo" class="text-base font-bold text-gray-900">Detalhes da Campanha</h3>
+            <button onclick="fecharModalDetalhesCampanha()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 block">Início</span>
+                    <span id="modal-detalhes-inicio" class="font-medium text-gray-800">-</span>
+                </div>
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 block">Vencimento</span>
+                    <span id="modal-detalhes-vencimento" class="font-medium text-gray-800">-</span>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">Veículos Alocados nesta Campanha:</h4>
+                <div class="max-h-56 overflow-y-auto border border-gray-200 rounded-lg">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0 border-b border-gray-200">
+                            <tr>
+                                <th class="py-2 px-3">Prefixo</th>
+                                <th class="py-2 px-3">Garagem</th>
+                                <th class="py-2 px-3">Linha</th>
+                                <th class="py-2 px-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-detalhes-onibus" class="divide-y divide-gray-100">
+                            <!-- Preenchido via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+            <button onclick="fecharModalDetalhesCampanha()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">Fechar</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
