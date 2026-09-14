@@ -88,8 +88,84 @@ window.renderizarTabelaOnibus = function(lista) {
         `;
     }).join('');
 };
-
 window.renderizarTabelaCampanhas = function() {
+    const tbody = document.getElementById("tabela-campanhas");
+    if (cacheCampanhas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-gray-500">Nenhuma campanha cadastrada.</td></tr>`;
+        return;
+    }
+
+    const hoje = new Date().toISOString().split('T')[0];
+
+    tbody.innerHTML = cacheCampanhas.map(c => {
+        let statusBadge = '';
+        if (hoje < c.inicio) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Agendada</span>`;
+        else if (hoje > c.fim) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Encerrada</span>`;
+        else statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Ativa</span>`;
+
+        const qtdVeiculos = cacheOnibus.filter(o => o.campanha === c.nome).length;
+
+        return `
+            <tr class="hover:bg-gray-50 transition border-b border-gray-100">
+                <td class="py-3 px-6 font-semibold text-gray-900">
+                    <button onclick="abrirDetalhesCampanha('${c.id}')" class="text-indigo-600 hover:text-indigo-900 hover:underline text-left font-semibold flex items-center space-x-1.5">
+                        <i class="fa-solid fa-bullhorn text-xs"></i>
+                        <span>${c.nome}</span>
+                    </button>
+                </td>
+                <td class="py-3 px-6 text-gray-700 font-medium">${qtdVeiculos} veículos</td>
+                <td class="py-3 px-6 text-gray-700">${formatarData(c.inicio)}</td>
+                <td class="py-3 px-6 text-gray-700">${formatarData(c.fim)}</td>
+                <td class="py-3 px-6">${statusBadge}</td>
+                <td class="py-3 px-6 text-center">
+                    <button onclick="deletarCampanha('${c.id}', '${c.nome}')" title="Excluir Campanha" class="text-rose-600 hover:text-rose-800 p-1"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+// FUNÇÕES DO NOVO MODAL DE DETALHES
+window.abrirDetalhesCampanha = function(idCampanha) {
+    const campanha = cacheCampanhas.find(c => c.id === idCampanha);
+    if (!campanha) return;
+
+    document.getElementById("modal-detalhes-titulo").innerText = campanha.nome;
+    document.getElementById("modal-detalhes-inicio").innerText = formatarData(campanha.inicio);
+    document.getElementById("modal-detalhes-vencimento").innerText = formatarData(campanha.fim);
+
+    const onibusDaCampanha = cacheOnibus.filter(o => o.campanha === campanha.nome);
+    const tbody = document.getElementById("tabela-detalhes-onibus");
+
+    if (onibusDaCampanha.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-gray-500 italic">Nenhum veículo alocado nesta campanha.</td></tr>`;
+    } else {
+        tbody.innerHTML = onibusDaCampanha.map(o => {
+            let badgeStatus = '';
+            if (o.status === 'Operando') badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Operando</span>`;
+            else if (o.status === 'Em Manutenção') badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Manutenção</span>`;
+            else badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Parado</span>`;
+
+            return `
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-3 font-semibold text-gray-900">${o.prefixo}</td>
+                    <td class="py-2 px-3 text-gray-700">${o.garagem || '-'}</td>
+                    <td class="py-2 px-3 text-gray-700">${o.linha || '-'}</td>
+                    <td class="py-2 px-3">${badgeStatus}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    document.getElementById("modal-detalhes-campanha").classList.remove("hidden");
+};
+
+window.fecharModalDetalhesCampanha = function() {
+    document.getElementById("modal-detalhes-campanha").classList.add("hidden");
+};
+
+
+/* window.renderizarTabelaCampanhas = function() {
     const tbody = document.getElementById("tabela-campanhas");
     if (cacheCampanhas.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-gray-500">Nenhuma campanha cadastrada.</td></tr>`;
@@ -119,7 +195,7 @@ window.renderizarTabelaCampanhas = function() {
             </tr>
         `;
     }).join('');
-};
+}; */
 
 function formatarData(dataStr) {
     if (!dataStr) return '';
