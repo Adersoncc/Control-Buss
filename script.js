@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// CONFIGURAÇÃO DO FIREBASE (Certifique-se que seus dados estão corretos)
+// CONFIGURAÇÃO DO FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyC63Q1eBXVFz5CkLxxWMAfDN6uxWwy_oU8",
   authDomain: "controle-de-campanhas-55ae2.firebaseapp.com",
@@ -17,6 +17,43 @@ const db = getFirestore(app);
 
 let cacheOnibus = [];
 let cacheCampanhas = [];
+
+// NOVA FUNÇÃO: Verifica se a campanha venceu e remove os ônibus dela
+async function verificarCampanhasVencidas() {
+    // Pega a data de hoje no formato YYYY-MM-DD
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // Filtra apenas as campanhas cuja data final é menor que hoje e extrai os nomes
+    const nomesCampanhasVencidas = cacheCampanhas
+        .filter(c => c.fim < hoje)
+        .map(c => c.nome);
+
+    if (nomesCampanhasVencidas.length === 0) return; // Nenhuma campanha vencida
+
+    const promessasAtualizacao = [];
+
+    // Percorre os ônibus para ver se algum pertence a uma campanha vencida
+    for (let o of cacheOnibus) {
+        if (o.campanha && nomesCampanhasVencidas.includes(o.campanha)) {
+            // Atualiza o cache local (para a tela já mostrar correto)
+            o.campanha = "";
+            
+            // Prepara a instrução para atualizar o Firebase
+            const docRef = doc(db, "onibus", o.id);
+            promessasAtualizacao.push(updateDoc(docRef, { campanha: "" }));
+        }
+    }
+
+    // Se houver ônibus para atualizar, executa todas as chamadas ao Firebase de uma vez
+    if (promessasAtualizacao.length > 0) {
+        try {
+            await Promise.all(promessasAtualizacao);
+            console.log(`${promessasAtualizacao.length} veículos foram removidos de campanhas vencidas.`);
+        } catch (error) {
+            console.error("Erro ao limpar campanhas vencidas dos veículos:", error);
+        }
+    }
+}
 
 window.carregarDados = async function() {
     try {
@@ -33,6 +70,11 @@ window.carregarDados = async function() {
 
         // Ordenar Campanhas: As mais recentes (ou novas IDs/cadastros) aparecem no topo
         cacheCampanhas.reverse();
+
+        // -------------------------------------------------------------
+        // VERIFICAÇÃO DE CAMPANHAS VENCIDAS ANTES DE RENDERIZAR
+        // -------------------------------------------------------------
+        await verificarCampanhasVencidas();
 
         atualizarMetricas();
         renderizarTabelaOnibus(cacheOnibus);
@@ -88,6 +130,7 @@ window.renderizarTabelaOnibus = function(lista) {
         `;
     }).join('');
 };
+
 window.renderizarTabelaCampanhas = function() {
     const tbody = document.getElementById("tabela-campanhas");
     if (cacheCampanhas.length === 0) {
@@ -163,39 +206,6 @@ window.abrirDetalhesCampanha = function(idCampanha) {
 window.fecharModalDetalhesCampanha = function() {
     document.getElementById("modal-detalhes-campanha").classList.add("hidden");
 };
-
-
-/* window.renderizarTabelaCampanhas = function() {
-    const tbody = document.getElementById("tabela-campanhas");
-    if (cacheCampanhas.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-gray-500">Nenhuma campanha cadastrada.</td></tr>`;
-        return;
-    }
-
-    const hoje = new Date().toISOString().split('T')[0];
-
-    tbody.innerHTML = cacheCampanhas.map(c => {
-        let statusBadge = '';
-        if (hoje < c.inicio) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Agendada</span>`;
-        else if (hoje > c.fim) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Encerrada</span>`;
-        else statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Ativa</span>`;
-
-        const qtdVeiculos = cacheOnibus.filter(o => o.campanha === c.nome).length;
-
-        return `
-            <tr class="hover:bg-gray-50 transition border-b border-gray-100">
-                <td class="py-3 px-6 font-semibold text-gray-900">${c.nome}</td>
-                <td class="py-3 px-6 text-gray-700 font-medium">${qtdVeiculos} veículos</td>
-                <td class="py-3 px-6 text-gray-700">${formatarData(c.inicio)}</td>
-                <td class="py-3 px-6 text-gray-700">${formatarData(c.fim)}</td>
-                <td class="py-3 px-6">${statusBadge}</td>
-                <td class="py-3 px-6 text-center">
-                    <button onclick="deletarCampanha('${c.id}', '${c.nome}')" title="Excluir Campanha" class="text-rose-600 hover:text-rose-800 p-1"><i class="fa-solid fa-trash"></i></button>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}; */
 
 function formatarData(dataStr) {
     if (!dataStr) return '';
