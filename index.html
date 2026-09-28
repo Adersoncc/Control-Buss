@@ -59,7 +59,7 @@
             </div>
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-500">Sem Campanha</p>
+                    <p class="text-sm font-medium text-gray-500">Sem Campanha Nenhuma</p>
                     <h3 id="metric-sem-campanha" class="text-2xl font-bold text-indigo-600 mt-1">0</h3>
                 </div>
                 <div class="bg-indigo-50 text-indigo-600 p-3 rounded-lg"><i class="fa-solid fa-bullhorn text-lg"></i></div>
@@ -73,8 +73,12 @@
                 <button onclick="abrirModalOnibus()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-sm flex items-center space-x-2">
                     <i class="fa-solid fa-plus"></i><span>Cadastrar Novo Ônibus</span>
                 </button>
-                <button onclick="abrirModalCampanha()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-sm flex items-center space-x-2">
+                <button onclick="abrirModalCampanha('normal')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-sm flex items-center space-x-2">
                     <i class="fa-solid fa-bullhorn"></i><span>Cadastrar Nova Campanha</span>
+                </button>
+                <!-- NOVO BOTÃO BACKSEAT -->
+                <button onclick="abrirModalCampanha('backseat')" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-sm flex items-center space-x-2">
+                    <i class="fa-solid fa-chair"></i><span>Cadastrar Campanha Backseat</span>
                 </button>
             </div>
         </div>
@@ -84,7 +88,7 @@
             <div class="p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h2 class="text-lg font-bold text-gray-900">Gestão da Frota de Ônibus</h2>
-                    <p class="text-sm text-gray-500 mt-0.5">Consulte o status, prefixo, linha, garagem e campanha dos veículos cadastrados</p>
+                    <p class="text-sm text-gray-500 mt-0.5">Consulte o status, prefixo, linha, garagem e campanhas dos veículos</p>
                 </div>
                 <div class="relative w-full sm:w-64">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400"><i class="fa-solid fa-search"></i></span>
@@ -100,23 +104,24 @@
                             <th class="py-3 px-6">Garagem</th>
                             <th class="py-3 px-6">Nome da Linha</th>
                             <th class="py-3 px-6">Status Operacional</th>
-                            <th class="py-3 px-6">Campanha Atual</th>
+                            <th class="py-3 px-6">Campanha (Tradicional)</th>
+                            <th class="py-3 px-6">Campanha (Backseat)</th>
                             <th class="py-3 px-6 text-center">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="tabela-onibus" class="divide-y divide-gray-200 text-sm">
-                        <tr><td colspan="6" class="py-6 text-center text-gray-500">Carregando frota do Firebase...</td></tr>
+                        <tr><td colspan="7" class="py-6 text-center text-gray-500">Carregando frota do Firebase...</td></tr>
                     </tbody>
                 </table>
                 </div>
             </div>
         </section>
 
-        <!-- SECTION: CAMPANHAS REGISTRADAS -->
+        <!-- SECTION: CAMPANHAS NORMAIS -->
         <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="p-6 border-b border-gray-200">
-                <h2 class="text-lg font-bold text-gray-900">Campanhas Registradas</h2>
-                <p class="text-sm text-gray-500 mt-0.5">Acompanhe vigências e quantidade de veículos alocados</p>
+                <h2 class="text-lg font-bold text-gray-900">Campanhas Registradas (Tradicionais)</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Acompanhe as campanhas tradicionais ativas e agendadas</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -130,8 +135,58 @@
                             <th class="py-3 px-6 text-center">Ações</th>
                         </tr>
                     </thead>
-                    <tbody id="tabela-campanhas" class="divide-y divide-gray-200 text-sm">
-                        <tr><td colspan="6" class="py-6 text-center text-gray-500">Carregando campanhas do Firebase...</td></tr>
+                    <tbody id="tabela-campanhas-normal" class="divide-y divide-gray-200 text-sm">
+                        <tr><td colspan="6" class="py-6 text-center text-gray-500">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SECTION: CAMPANHAS BACKSEAT -->
+        <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-lg font-bold text-gray-900 text-purple-800">Campanhas Backseat Registradas</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Acompanhe as campanhas internas (Backseat) ativas e agendadas</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wider border-b border-gray-200">
+                            <th class="py-3 px-6">Campanha Backseat</th>
+                            <th class="py-3 px-6">Qtd. Veículos</th>
+                            <th class="py-3 px-6">Início</th>
+                            <th class="py-3 px-6">Vencimento</th>
+                            <th class="py-3 px-6">Status</th>
+                            <th class="py-3 px-6 text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-campanhas-backseat" class="divide-y divide-gray-200 text-sm">
+                        <tr><td colspan="6" class="py-6 text-center text-gray-500">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SECTION: CAMPANHAS VENCIDAS -->
+        <section class="bg-gray-50 rounded-xl border border-gray-200 shadow-sm overflow-hidden opacity-90">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-lg font-bold text-rose-700"><i class="fa-solid fa-clock-rotate-left mr-2"></i>Campanhas Vencidas (Histórico)</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Campanhas encerradas. Clique para ver os veículos que participaram para auxiliar na remoção.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 uppercase text-xs tracking-wider border-b border-gray-200">
+                            <th class="py-3 px-6">Campanha Encerrada</th>
+                            <th class="py-3 px-6">Qtd. Veículos</th>
+                            <th class="py-3 px-6">Início</th>
+                            <th class="py-3 px-6">Vencimento</th>
+                            <th class="py-3 px-6">Status</th>
+                            <th class="py-3 px-6 text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-campanhas-vencidas" class="divide-y divide-gray-200 text-sm bg-white">
+                        <tr><td colspan="6" class="py-6 text-center text-gray-500">Carregando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -176,7 +231,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">Nome da Linha / Rota <span class="text-gray-400 font-normal">(Opcional / Editável depois)</span></label>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">Nome da Linha / Rota <span class="text-gray-400 font-normal">(Opcional)</span></label>
                     <input type="text" id="onibus-linha" placeholder="Ex: Cohatrac / Aeroporto" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
@@ -187,14 +242,19 @@
         </div>
     </div>
 
-    <!-- MODAL: CADASTRAR CAMPANHA -->
+    <!-- MODAL: CADASTRAR / EDITAR CAMPANHA (NORMAIS E BACKSEAT) -->
     <div id="modal-campanha" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm p-4">
         <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden transform transition-all">
             <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                <h3 class="text-base font-bold text-gray-900">Cadastrar Nova Campanha</h3>
+                <h3 id="titulo-modal-campanha" class="text-base font-bold text-gray-900">Cadastrar Nova Campanha</h3>
                 <button onclick="fecharModalCampanha()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <form id="form-campanha" onsubmit="salvarCampanha(event)" class="p-6 space-y-4">
+                
+                <!-- AQUI ESTÃO OS DOIS CAMPOS ESCONDIDOS IMPORTANTES PARA A EDIÇÃO -->
+                <input type="hidden" id="campanha-id" value=""> 
+                <input type="hidden" id="campanha-tipo" value="normal">
+                
                 <div>
                     <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">Nome da Campanha *</label>
                     <input type="text" id="campanha-nome" required placeholder="Ex: Campanha Aniversário da Cidade" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -226,50 +286,51 @@
         </div>
     </div>
 
-    <!-- SCRIPT JS -->
-    <script type="module" src="script.js"></script>
     <!-- MODAL: DETALHES DA CAMPANHA -->
-<div id="modal-detalhes-campanha" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm p-4">
-    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden transform transition-all">
-        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-            <h3 id="modal-detalhes-titulo" class="text-base font-bold text-gray-900">Detalhes da Campanha</h3>
-            <button onclick="fecharModalDetalhesCampanha()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-        </div>
-        <div class="p-6 space-y-4">
-            <div class="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <div>
-                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 block">Início</span>
-                    <span id="modal-detalhes-inicio" class="font-medium text-gray-800">-</span>
+    <div id="modal-detalhes-campanha" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden transform transition-all">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <h3 id="modal-detalhes-titulo" class="text-base font-bold text-gray-900">Detalhes da Campanha</h3>
+                <button onclick="fecharModalDetalhesCampanha()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div>
+                        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 block">Início</span>
+                        <span id="modal-detalhes-inicio" class="font-medium text-gray-800">-</span>
+                    </div>
+                    <div>
+                        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 block">Vencimento</span>
+                        <span id="modal-detalhes-vencimento" class="font-medium text-gray-800">-</span>
+                    </div>
                 </div>
                 <div>
-                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 block">Vencimento</span>
-                    <span id="modal-detalhes-vencimento" class="font-medium text-gray-800">-</span>
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">Veículos Alocados nesta Campanha:</h4>
+                    <div class="max-h-56 overflow-y-auto border border-gray-200 rounded-lg">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead class="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3">Prefixo</th>
+                                    <th class="py-2 px-3">Garagem</th>
+                                    <th class="py-2 px-3">Linha</th>
+                                    <th class="py-2 px-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-detalhes-onibus" class="divide-y divide-gray-100">
+                                <!-- Preenchido via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <div>
-                <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">Veículos Alocados nesta Campanha:</h4>
-                <div class="max-h-56 overflow-y-auto border border-gray-200 rounded-lg">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead class="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0 border-b border-gray-200">
-                            <tr>
-                                <th class="py-2 px-3">Prefixo</th>
-                                <th class="py-2 px-3">Garagem</th>
-                                <th class="py-2 px-3">Linha</th>
-                                <th class="py-2 px-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabela-detalhes-onibus" class="divide-y divide-gray-100">
-                            <!-- Preenchido via JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
+            <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <button onclick="fecharModalDetalhesCampanha()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">Fechar</button>
             </div>
-        </div>
-        <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
-            <button onclick="fecharModalDetalhesCampanha()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition">Fechar</button>
         </div>
     </div>
-</div>
+
+    <!-- SCRIPT JS -->
+    <script type="module" src="script.js"></script>
 
 </body>
 </html>
