@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// CONFIGURAÇÃO DO FIREBASE (Suas credenciais mantidas)
+// CONFIGURAÇÃO DO FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyC63Q1eBXVFz5CkLxxWMAfDN6uxWwy_oU8",
   authDomain: "controle-de-campanhas-55ae2.firebaseapp.com",
@@ -89,19 +89,33 @@ function atualizarMetricas() {
     const operando = cacheOnibus.filter(o => o.status === 'Operando').length;
     const parados = cacheOnibus.filter(o => o.status === 'Parado' || o.status === 'Em Manutenção').length;
     
-    const semCampanha = cacheOnibus.filter(o => 
-        (!o.campanha || o.campanha.trim() === '') && 
-        (!o.campanha_backseat || o.campanha_backseat.trim() === '')
-    ).length;
+    // Contagens separadas rigorosamente
+    const dispTradicional = cacheOnibus.filter(o => !o.campanha || o.campanha.trim() === '').length;
+    const dispBackseat = cacheOnibus.filter(o => !o.campanha_backseat || o.campanha_backseat.trim() === '').length;
 
-    document.getElementById("metric-total").innerText = total;
-    document.getElementById("metric-operando").innerText = operando;
-    document.getElementById("metric-parados").innerText = parados;
-    document.getElementById("metric-sem-campanha").innerText = semCampanha;
+    // Atualiza os contadores na tela
+    if (document.getElementById("metric-total")) document.getElementById("metric-total").innerText = total;
+    if (document.getElementById("metric-operando")) document.getElementById("metric-operando").innerText = operando;
+    if (document.getElementById("metric-parados")) document.getElementById("metric-parados").innerText = parados;
+    
+    // Se você já atualizou o HTML com os 5 cards novos, estes dois abaixo vão funcionar:
+    if (document.getElementById("metric-livres-tradicional")) document.getElementById("metric-livres-tradicional").innerText = dispTradicional;
+    if (document.getElementById("metric-livres-backseat")) document.getElementById("metric-livres-backseat").innerText = dispBackseat;
+    
+    // Fallback para caso não tenha atualizado o HTML com os 5 cards ainda
+    if (document.getElementById("metric-sem-campanha")) {
+        const semCampanha = cacheOnibus.filter(o => 
+            (!o.campanha || o.campanha.trim() === '') && 
+            (!o.campanha_backseat || o.campanha_backseat.trim() === '')
+        ).length;
+        document.getElementById("metric-sem-campanha").innerText = semCampanha;
+    }
 }
 
 window.renderizarTabelaOnibus = function(lista) {
     const tbody = document.getElementById("tabela-onibus");
+    if (!tbody) return;
+    
     if (lista.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-gray-500">Nenhum ônibus cadastrado.</td></tr>`;
         return;
@@ -328,26 +342,28 @@ window.deletarOnibus = async function(id) {
 // MODAL CAMPANHA (SERVE PARA NORMAL E BACKSEAT)
 window.abrirModalCampanha = function(tipo = 'normal') {
     document.getElementById("form-campanha").reset();
-    document.getElementById("campanha-id").value = ""; // Limpa ID para criar nova
+    document.getElementById("campanha-id").value = ""; 
     document.getElementById("campanha-tipo").value = tipo;
     
     const tituloEl = document.getElementById("titulo-modal-campanha");
-    if (tipo === 'backseat') {
-        tituloEl.innerText = "Cadastrar Nova Campanha Backseat";
-    } else {
-        tituloEl.innerText = "Cadastrar Nova Campanha";
-    }
+    tituloEl.innerText = tipo === 'backseat' ? "Cadastrar Nova Campanha Backseat" : "Cadastrar Nova Campanha";
 
     const container = document.getElementById("lista-checkbox-onibus");
     if (cacheOnibus.length === 0) {
         container.innerHTML = `<p class="text-xs text-gray-500 italic p-2">Nenhum ônibus cadastrado.</p>`;
     } else {
-        container.innerHTML = cacheOnibus.map(o => `
-            <label class="flex items-center space-x-2 p-1 hover:bg-white rounded cursor-pointer">
+        container.innerHTML = cacheOnibus.map(o => {
+            // Mostra visualmente se o ônibus já está ocupado NESTE tipo específico de campanha
+            const ocupado = (tipo === 'normal') ? o.campanha : o.campanha_backseat;
+            const badgeOcupado = ocupado ? `<span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Em uso: ${ocupado}</span>` : `<span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Livre</span>`;
+
+            return `
+            <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded cursor-pointer border-b border-gray-200">
                 <input type="checkbox" name="onibus-checkbox" value="${o.prefixo}" class="rounded text-indigo-600 focus:ring-indigo-500">
                 <span class="text-xs font-medium text-gray-800">Prefixo: ${o.prefixo} ${o.linha ? '(' + o.linha + ')' : ''}</span>
+                ${badgeOcupado}
             </label>
-        `).join('');
+        `}).join('');
     }
     document.getElementById("modal-campanha").classList.remove("hidden");
 };
@@ -357,15 +373,16 @@ window.editarCampanha = function(id) {
     const campanha = cacheCampanhas.find(c => c.id === id);
     if (!campanha) return;
 
+    const tipo = campanha.tipo || 'normal';
+
     document.getElementById("form-campanha").reset();
     document.getElementById("campanha-id").value = campanha.id;
-    document.getElementById("campanha-tipo").value = campanha.tipo || 'normal';
+    document.getElementById("campanha-tipo").value = tipo;
     document.getElementById("campanha-nome").value = campanha.nome;
     document.getElementById("campanha-inicio").value = campanha.inicio;
     document.getElementById("campanha-fim").value = campanha.fim;
 
-    const tituloEl = document.getElementById("titulo-modal-campanha");
-    tituloEl.innerText = (campanha.tipo === 'backseat') ? "Editar Campanha Backseat" : "Editar Campanha";
+    document.getElementById("titulo-modal-campanha").innerText = (tipo === 'backseat') ? "Editar Campanha Backseat" : "Editar Campanha";
 
     const container = document.getElementById("lista-checkbox-onibus");
     const veiculosMarcados = campanha.veiculos || [];
@@ -375,10 +392,22 @@ window.editarCampanha = function(id) {
     } else {
         container.innerHTML = cacheOnibus.map(o => {
             const checked = veiculosMarcados.includes(o.prefixo) ? "checked" : "";
+            const ocupadoAtual = (tipo === 'normal') ? o.campanha : o.campanha_backseat;
+            let badge = '';
+
+            if (checked) {
+                badge = `<span class="ml-2 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Nesta Campanha</span>`;
+            } else if (ocupadoAtual) {
+                badge = `<span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Em uso: ${ocupadoAtual}</span>`;
+            } else {
+                badge = `<span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Livre</span>`;
+            }
+
             return `
-            <label class="flex items-center space-x-2 p-1 hover:bg-white rounded cursor-pointer">
+            <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded cursor-pointer border-b border-gray-200">
                 <input type="checkbox" name="onibus-checkbox" value="${o.prefixo}" ${checked} class="rounded text-indigo-600 focus:ring-indigo-500">
                 <span class="text-xs font-medium text-gray-800">Prefixo: ${o.prefixo} ${o.linha ? '(' + o.linha + ')' : ''}</span>
+                ${badge}
             </label>
             `;
         }).join('');
@@ -397,11 +426,11 @@ window.selecionarTodosOnibus = function(marcar) {
 
 window.salvarCampanha = async function(event) {
     event.preventDefault();
-    const id = document.getElementById("campanha-id").value; // Verifica se tem ID (Edição)
+    const id = document.getElementById("campanha-id").value; 
     const nome = document.getElementById("campanha-nome").value.trim();
     const inicio = document.getElementById("campanha-inicio").value;
     const fim = document.getElementById("campanha-fim").value;
-    const tipo = document.getElementById("campanha-tipo").value;
+    const tipo = document.getElementById("campanha-tipo").value; // 'normal' ou 'backseat'
 
     const checkboxes = document.querySelectorAll('input[name="onibus-checkbox"]:checked');
     const prefixosSelecionados = Array.from(checkboxes).map(cb => cb.value);
@@ -414,8 +443,8 @@ window.salvarCampanha = async function(event) {
     try {
         let nomeAntigo = null;
 
+        // Salva os metadados da campanha na collection 'campanhas'
         if (id) {
-            // EDIÇÃO DE CAMPANHA EXISTENTE
             const campAntiga = cacheCampanhas.find(c => c.id === id);
             if (campAntiga) nomeAntigo = campAntiga.nome;
 
@@ -423,66 +452,101 @@ window.salvarCampanha = async function(event) {
                 nome, inicio, fim, tipo, veiculos: prefixosSelecionados 
             });
         } else {
-            // CRIAÇÃO DE NOVA CAMPANHA
             await addDoc(collection(db, "campanhas"), { 
                 nome, inicio, fim, tipo, veiculos: prefixosSelecionados 
             });
         }
 
-        // ATUALIZA OS ÔNIBUS NO BANCO
+        // ISOLAMENTO DE ATUALIZAÇÃO NO BANCO DE ÔNIBUS
+        const promessasOnibus = [];
+
         for (let o of cacheOnibus) {
             let updates = {};
-            let atualizou = false;
+            let alterado = false;
 
-            // Passo 1: Se era dessa campanha e foi desmarcado, limpa.
-            if (nomeAntigo) {
-                if (tipo === 'backseat' && o.campanha_backseat === nomeAntigo) {
-                    updates.campanha_backseat = "";
-                    atualizou = true;
-                } else if (tipo === 'normal' && o.campanha === nomeAntigo) {
-                    updates.campanha = "";
-                    atualizou = true;
-                }
-            }
-
-            // Passo 2: Se foi marcado na lista atual, aplica o nome (mesmo se for edição de nome).
-            if (prefixosSelecionados.includes(o.prefixo)) {
-                if (tipo === 'backseat') {
-                    updates.campanha_backseat = nome;
+            if (tipo === 'normal') {
+                // Trata Apenas Campanhas Externas/Normais
+                if (prefixosSelecionados.includes(o.prefixo)) {
+                    if (o.campanha !== nome) {
+                        updates.campanha = nome;
+                        alterado = true;
+                    }
                 } else {
-                    updates.campanha = nome;
+                    if (o.campanha === nomeAntigo || o.campanha === nome) {
+                        updates.campanha = "";
+                        alterado = true;
+                    }
                 }
-                atualizou = true;
+            } else if (tipo === 'backseat') {
+                // Trata Apenas Campanhas Internas/Backseat
+                if (prefixosSelecionados.includes(o.prefixo)) {
+                    if (o.campanha_backseat !== nome) {
+                        updates.campanha_backseat = nome;
+                        alterado = true;
+                    }
+                } else {
+                    if (o.campanha_backseat === nomeAntigo || o.campanha_backseat === nome) {
+                        updates.campanha_backseat = "";
+                        alterado = true;
+                    }
+                }
             }
 
-            if (atualizou) {
-                await updateDoc(doc(db, "onibus", o.id), updates);
+            if (alterado) {
+                promessasOnibus.push(updateDoc(doc(db, "onibus", o.id), updates));
             }
+        }
+
+        if (promessasOnibus.length > 0) {
+            await Promise.all(promessasOnibus);
         }
 
         fecharModalCampanha();
         carregarDados();
     } catch (error) {
         console.error("Erro ao salvar campanha:", error);
+        alert("Erro ao salvar a campanha. Verifique o console.");
     }
 };
 
+// FUNÇÃO PARA EXCLUIR CAMPANHA (E LIMPAR OS ÔNIBUS DELA)
 window.deletarCampanha = async function(id, nomeCampanha, tipo) {
-    if (confirm(`Deseja realmente excluir a campanha "${nomeCampanha}" DEFINITIVAMENTE?`)) {
+    if (confirm(`Deseja realmente excluir a campanha "${nomeCampanha}"?`)) {
         try {
+            // 1. Exclui a campanha da tabela principal
+            await deleteDoc(doc(db, "campanhas", id));
+
+            // 2. Remove o nome dessa campanha dos ônibus que estavam vinculados a ela
+            const promessasOnibus = [];
+            
             for (let o of cacheOnibus) {
-                if (tipo === 'backseat' && o.campanha_backseat === nomeCampanha) {
-                    await updateDoc(doc(db, "onibus", o.id), { campanha_backseat: "" });
-                } else if (tipo === 'normal' && o.campanha === nomeCampanha) {
-                    await updateDoc(doc(db, "onibus", o.id), { campanha: "" });
+                let alterado = false;
+                let updates = {};
+
+                if (tipo === 'normal' && o.campanha === nomeCampanha) {
+                    updates.campanha = "";
+                    alterado = true;
+                } else if (tipo === 'backseat' && o.campanha_backseat === nomeCampanha) {
+                    updates.campanha_backseat = "";
+                    alterado = true;
+                }
+
+                if (alterado) {
+                    promessasOnibus.push(updateDoc(doc(db, "onibus", o.id), updates));
                 }
             }
-            await deleteDoc(doc(db, "campanhas", id));
+
+            if (promessasOnibus.length > 0) {
+                await Promise.all(promessasOnibus);
+            }
+
             carregarDados();
         } catch (error) {
             console.error("Erro ao excluir campanha:", error);
+            alert("Erro ao excluir. Verifique o console.");
         }
     }
 };
 
-window.addEventListener('DOMContentLoaded', carregarDados);
+// Iniciar carregamento assim que o script rodar
+window.onload = carregarDados;
