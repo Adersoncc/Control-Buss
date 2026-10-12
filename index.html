@@ -344,6 +344,16 @@
 
     <!-- SCRIPT JS -->
     <script type="module" src="script.js"></script>
-
+    <!-- Registra o Service Worker (sw.js) -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW registrado!'))
+        .catch(err => console.log('Erro no SW:', err));
+    });
+  }
+</script>
+    
 </body>
 </html>
