@@ -171,7 +171,7 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         return;
     }
 
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = new Date().toLocaleDateString('en-CA');
 
     tbody.innerHTML = lista.map(c => {
         let statusBadge = '';
@@ -179,8 +179,19 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         else if (hoje > c.fim) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Vencida</span>`;
         else statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Ativa</span>`;
 
-        const qtdVeiculos = c.veiculos ? c.veiculos.length : cacheOnibus.filter(o => o.campanha === c.nome || o.campanha_backseat === c.nome).length;
-        
+        // --- SOLUÇÃO DA CONTAGEM ---
+        let qtdVeiculos = 0;
+        if (hoje > c.fim) {
+            // Se venceu, mostra o histórico (o print de todos que rodaram nela)
+            const historico = c.historico_veiculos || c.veiculos || [];
+            qtdVeiculos = historico.length;
+        } else {
+            // Se está ativa, conta APENAS quem realmente está nela agora (sem duplicar)
+            qtdVeiculos = cacheOnibus.filter(o =>
+                c.tipo === 'backseat' ? o.campanha_backseat === c.nome : o.campanha === c.nome
+            ).length;
+        }
+
         const icone = c.tipo === 'backseat' ? 'fa-chair' : 'fa-bullhorn';
         const corIcone = c.tipo === 'backseat' ? 'text-purple-600' : 'text-indigo-600';
 
@@ -205,6 +216,7 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
     }).join('');
 }
 
+
 window.abrirDetalhesCampanha = function(idCampanha) {
     const campanha = cacheCampanhas.find(c => c.id === idCampanha);
     if (!campanha) return;
@@ -213,24 +225,34 @@ window.abrirDetalhesCampanha = function(idCampanha) {
     document.getElementById("modal-detalhes-inicio").innerText = formatarData(campanha.inicio);
     document.getElementById("modal-detalhes-vencimento").innerText = formatarData(campanha.fim);
 
+    // Usa o histórico garantido para manter o "print"
+    const historico = campanha.historico_veiculos || campanha.veiculos || [];
     let onibusDaCampanha = [];
 
-    if (campanha.veiculos && campanha.veiculos.length > 0) {
-        onibusDaCampanha = cacheOnibus.filter(o => campanha.veiculos.includes(o.prefixo));
+    if (historico.length > 0) {
+        onibusDaCampanha = cacheOnibus.filter(o => historico.includes(o.prefixo));
     } else {
         onibusDaCampanha = cacheOnibus.filter(o => o.campanha === campanha.nome || o.campanha_backseat === campanha.nome);
     }
 
     const tbody = document.getElementById("tabela-detalhes-onibus");
+    const hoje = new Date().toLocaleDateString('en-CA');
 
     if (onibusDaCampanha.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-gray-500 italic">Nenhum veículo encontrado no sistema.</td></tr>`;
     } else {
         tbody.innerHTML = onibusDaCampanha.map(o => {
             let badgeStatus = '';
-            if (o.status === 'Operando') badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Operando</span>`;
-            else if (o.status === 'Em Manutenção') badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Manutenção</span>`;
-            else badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Parado</span>`;
+            const campanhaAtual = campanha.tipo === 'backseat' ? o.campanha_backseat : o.campanha;
+
+            // Se a campanha está ativa, mas o ônibus já foi colado em outra:
+            if (campanhaAtual && campanhaAtual !== campanha.nome && hoje <= campanha.fim) {
+                badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Movido p/ ${campanhaAtual}</span>`;
+            } else {
+                if (o.status === 'Operando') badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Operando</span>`;
+                else if (o.status === 'Em Manutenção') badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Manutenção</span>`;
+                else badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Parado</span>`;
+            }
 
             return `
                 <tr class="hover:bg-gray-50">
@@ -245,6 +267,7 @@ window.abrirDetalhesCampanha = function(idCampanha) {
 
     document.getElementById("modal-detalhes-campanha").classList.remove("hidden");
 };
+
 
 window.fecharModalDetalhesCampanha = function() {
     document.getElementById("modal-detalhes-campanha").classList.add("hidden");
@@ -391,26 +414,30 @@ window.editarCampanha = function(id) {
         container.innerHTML = `<p class="text-xs text-gray-500 italic p-2">Nenhum ônibus cadastrado.</p>`;
     } else {
         container.innerHTML = cacheOnibus.map(o => {
-            const checked = veiculosMarcados.includes(o.prefixo) ? "checked" : "";
-            const ocupadoAtual = (tipo === 'normal') ? o.campanha : o.campanha_backseat;
-            let badge = '';
+    const ocupadoAtual = (tipo === 'normal') ? o.campanha : o.campanha_backseat;
+    
+    // Deixa marcado APENAS se o ônibus estiver de fato rodando nesta campanha hoje.
+    // Isso impede que você puxe um ônibus roubado de volta sem querer ao salvar.
+    const checked = (ocupadoAtual === campanha.nome) ? "checked" : "";
 
-            if (checked) {
-                badge = `<span class="ml-2 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Nesta Campanha</span>`;
-            } else if (ocupadoAtual) {
-                badge = `<span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Em uso: ${ocupadoAtual}</span>`;
-            } else {
-                badge = `<span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Livre</span>`;
-            }
+    let badge = '';
+    if (checked) {
+        badge = `<span class="ml-2 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Nesta Campanha</span>`;
+    } else if (ocupadoAtual) {
+        badge = `<span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Em uso: ${ocupadoAtual}</span>`;
+    } else {
+        badge = `<span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Livre</span>`;
+    }
 
-            return `
-            <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded cursor-pointer border-b border-gray-200">
-                <input type="checkbox" name="onibus-checkbox" value="${o.prefixo}" ${checked} class="rounded text-indigo-600 focus:ring-indigo-500">
-                <span class="text-xs font-medium text-gray-800">Prefixo: ${o.prefixo} ${o.linha ? '(' + o.linha + ')' : ''}</span>
-                ${badge}
-            </label>
-            `;
-        }).join('');
+    return `
+    <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded cursor-pointer border-b border-gray-200">
+        <input type="checkbox" name="onibus-checkbox" value="${o.prefixo}" ${checked} class="rounded text-indigo-600 focus:ring-indigo-500">
+        <span class="text-xs font-medium text-gray-800">Prefixo: ${o.prefixo} ${o.linha ? '(' + o.linha + ')' : ''}</span>
+        ${badge}
+    </label>
+    `;
+}).join('');
+
     }
     document.getElementById("modal-campanha").classList.remove("hidden");
 };
@@ -441,21 +468,26 @@ window.salvarCampanha = async function(event) {
     }
 
     try {
-        let nomeAntigo = null;
+    let nomeAntigo = null;
+    let historico = prefixosSelecionados; // Se for nova, o histórico são os marcados
 
-        // Salva os metadados da campanha na collection 'campanhas'
-        if (id) {
-            const campAntiga = cacheCampanhas.find(c => c.id === id);
-            if (campAntiga) nomeAntigo = campAntiga.nome;
-
-            await updateDoc(doc(db, "campanhas", id), { 
-                nome, inicio, fim, tipo, veiculos: prefixosSelecionados 
-            });
-        } else {
-            await addDoc(collection(db, "campanhas"), { 
-                nome, inicio, fim, tipo, veiculos: prefixosSelecionados 
-            });
+    if (id) {
+        const campAntiga = cacheCampanhas.find(c => c.id === id);
+        if (campAntiga) {
+            nomeAntigo = campAntiga.nome;
+            // Junta o histórico que já existia com os novos selecionados, sem repetir nomes
+            const historicoAntigo = campAntiga.historico_veiculos || campAntiga.veiculos || [];
+            historico = [...new Set([...historicoAntigo, ...prefixosSelecionados])];
         }
+
+        await updateDoc(doc(db, "campanhas", id), { 
+            nome, inicio, fim, tipo, veiculos: prefixosSelecionados, historico_veiculos: historico 
+        });
+    } else {
+        await addDoc(collection(db, "campanhas"), { 
+            nome, inicio, fim, tipo, veiculos: prefixosSelecionados, historico_veiculos: historico 
+        });
+    }
 
         // ISOLAMENTO DE ATUALIZAÇÃO NO BANCO DE ÔNIBUS
         const promessasOnibus = [];
