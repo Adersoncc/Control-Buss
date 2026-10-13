@@ -179,17 +179,29 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         else if (hoje > c.fim) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Vencida</span>`;
         else statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Ativa</span>`;
 
-        // --- SOLUÇÃO DA CONTAGEM ---
-        let qtdVeiculos = 0;
+        // --- NOVA LÓGICA DE EXIBIÇÃO DE VEÍCULOS ---
+        const historico = c.historico_veiculos || c.veiculos || [];
+        const qtdOriginal = historico.length; // Quantos foram alocados desde o início
+        
+        // Quantos estão rodando nela AGORA (verificando os ônibus no banco)
+        const qtdAtivos = cacheOnibus.filter(o =>
+            c.tipo === 'backseat' ? o.campanha_backseat === c.nome : o.campanha === c.nome
+        ).length;
+
+        let textoVeiculos = '';
+        
         if (hoje > c.fim) {
-            // Se venceu, mostra o histórico (o print de todos que rodaram nela)
-            const historico = c.historico_veiculos || c.veiculos || [];
-            qtdVeiculos = historico.length;
+            // Se venceu, mostra apenas o histórico
+            textoVeiculos = `${qtdOriginal} veículos`;
         } else {
-            // Se está ativa, conta APENAS quem realmente está nela agora (sem duplicar)
-            qtdVeiculos = cacheOnibus.filter(o =>
-                c.tipo === 'backseat' ? o.campanha_backseat === c.nome : o.campanha === c.nome
-            ).length;
+            // Se está ativa ou agendada
+            if (qtdAtivos === qtdOriginal || qtdOriginal === 0) {
+                // Se nenhum ônibus foi remanejado, mostra normal
+                textoVeiculos = `${qtdAtivos} veículos`;
+            } else {
+                // Se algum ônibus foi puxado para outra campanha, mostra o destaque
+                textoVeiculos = `<span class="text-blue-700 font-bold">${qtdAtivos} ativos</span> <br><span class="text-xs text-gray-500">(de ${qtdOriginal} originais)</span>`;
+            }
         }
 
         const icone = c.tipo === 'backseat' ? 'fa-chair' : 'fa-bullhorn';
@@ -203,7 +215,7 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
                         <span>${c.nome}</span>
                     </button>
                 </td>
-                <td class="py-3 px-6 text-gray-700 font-medium">${qtdVeiculos} veículos</td>
+                <td class="py-3 px-6 text-gray-700 font-medium leading-tight">${textoVeiculos}</td>
                 <td class="py-3 px-6 text-gray-700">${formatarData(c.inicio)}</td>
                 <td class="py-3 px-6 text-gray-700">${formatarData(c.fim)}</td>
                 <td class="py-3 px-6">${statusBadge}</td>
@@ -215,7 +227,6 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         `;
     }).join('');
 }
-
 
 window.abrirDetalhesCampanha = function(idCampanha) {
     const campanha = cacheCampanhas.find(c => c.id === idCampanha);
