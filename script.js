@@ -479,69 +479,91 @@ window.salvarCampanha = async function(event) {
     }
 
     try {
-    let nomeAntigo = null;
-    let historico = prefixosSelecionados; // Se for nova, o histórico são os marcados
+        let nomeAntigo = null;
+        let historico = prefixosSelecionados;
 
-    if (id) {
-        const campAntiga = cacheCampanhas.find(c => c.id === id);
-        if (campAntiga) {
-            nomeAntigo = campAntiga.nome;
-            // Junta o histórico que já existia com os novos selecionados, sem repetir nomes
-            const historicoAntigo = campAntiga.historico_veiculos || campAntiga.veiculos || [];
-            historico = [...new Set([...historicoAntigo, ...prefixosSelecionados])];
+        if (id) {
+            const campAntiga = cacheCampanhas.find(c => c.id === id);
+            if (campAntiga) {
+                nomeAntigo = campAntiga.nome;
+                const historicoAntigo = campAntiga.historico_veiculos || campAntiga.veiculos || [];
+                historico = [...new Set([...historicoAntigo, ...prefixosSelecionados])];
+            }
+
+            await updateDoc(doc(db, "campanhas", id), { 
+                nome, inicio, fim, tipo, veiculos: prefixosSelecionados, historico_veiculos: historico 
+            });
+        } else {
+            await addDoc(collection(db, "campanhas"), { 
+                nome, inicio, fim, tipo, veiculos: prefixosSelecionados, historico_veiculos: historico 
+            });
         }
 
-        await updateDoc(doc(db, "campanhas", id), { 
-            nome, inicio, fim, tipo, veiculos: prefixosSelecionados, historico_veiculos: historico 
-        });
-    } else {
-        await addDoc(collection(db, "campanhas"), { 
-            nome, inicio, fim, tipo, veiculos: prefixosSelecionados, historico_veiculos: historico 
-        });
-    }
-
-        // ISOLAMENTO DE ATUALIZAÇÃO NO BANCO DE ÔNIBUS
-        const promessasOnibus = [];
+        // ISOLAMENTO DE ATUALIZAÇÃO NO BANCO DE ÔNIBUS E LIMPEZA DE OUTRAS CAMPANHAS
+        const promessasAtualizacao = [];
 
         for (let o of cacheOnibus) {
-            let updates = {};
-            let alterado = false;
+            let updatesOnibus = {};
+            let alterouOnibus = false;
 
             if (tipo === 'normal') {
-                // Trata Apenas Campanhas Externas/Normais
                 if (prefixosSelecionados.includes(o.prefixo)) {
+                    // Se o ônibus já estava em OUTRA campanha (ex: Wellington), precisamos removê-lo de lá
+                    if (o.campanha && o.campanha !== nome && o.campanha !== nomeAntigo) {
+                        const campanhaConcorrente = cacheCampanhas.find(c => c.nome === o.campanha && (c.tipo === 'normal' || !c.tipo));
+                        if (campanhaConcorrente) {
+                            // Filtra a lista atual de veículos, tirando o ônibus que foi remanejado
+                            const novaListaVeiculos = (campanhaConcorrente.veiculos || []).filter(v => v !== o.prefixo);
+                            
+                            // Atualiza a campanha antiga no Firebase para que ela não ache mais que tem esse ônibus
+                            promessasAtualizacao.push(updateDoc(doc(db, "campanhas", campanhaConcorrente.id), {
+                                veiculos: novaListaVeiculos
+                            }));
+                        }
+                    }
+
                     if (o.campanha !== nome) {
-                        updates.campanha = nome;
-                        alterado = true;
+                        updatesOnibus.campanha = nome;
+                        alterouOnibus = true;
                     }
                 } else {
                     if (o.campanha === nomeAntigo || o.campanha === nome) {
-                        updates.campanha = "";
-                        alterado = true;
+                        updatesOnibus.campanha = "";
+                        alterouOnibus = true;
                     }
                 }
             } else if (tipo === 'backseat') {
-                // Trata Apenas Campanhas Internas/Backseat
                 if (prefixosSelecionados.includes(o.prefixo)) {
+                    
+                    if (o.campanha_backseat && o.campanha_backseat !== nome && o.campanha_backseat !== nomeAntigo) {
+                        const campanhaConcorrente = cacheCampanhas.find(c => c.nome === o.campanha_backseat && c.tipo === 'backseat');
+                        if (campanhaConcorrente) {
+                            const novaListaVeiculos = (campanhaConcorrente.veiculos || []).filter(v => v !== o.prefixo);
+                            promessasAtualizacao.push(updateDoc(doc(db, "campanhas", campanhaConcorrente.id), {
+                                veiculos: novaListaVeiculos
+                            }));
+                        }
+                    }
+
                     if (o.campanha_backseat !== nome) {
-                        updates.campanha_backseat = nome;
-                        alterado = true;
+                        updatesOnibus.campanha_backseat = nome;
+                        alterouOnibus = true;
                     }
                 } else {
                     if (o.campanha_backseat === nomeAntigo || o.campanha_backseat === nome) {
-                        updates.campanha_backseat = "";
-                        alterado = true;
+                        updatesOnibus.campanha_backseat = "";
+                        alterouOnibus = true;
                     }
                 }
             }
 
-            if (alterado) {
-                promessasOnibus.push(updateDoc(doc(db, "onibus", o.id), updates));
+            if (alterouOnibus) {
+                promessasAtualizacao.push(updateDoc(doc(db, "onibus", o.id), updatesOnibus));
             }
         }
 
-        if (promessasOnibus.length > 0) {
-            await Promise.all(promessasOnibus);
+        if (promessasAtualizacao.length > 0) {
+            await Promise.all(promessasAtualizacao);
         }
 
         fecharModalCampanha();
@@ -551,6 +573,7 @@ window.salvarCampanha = async function(event) {
         alert("Erro ao salvar a campanha. Verifique o console.");
     }
 };
+
 
 // FUNÇÃO PARA EXCLUIR CAMPANHA (E LIMPAR OS ÔNIBUS DELA)
 window.deletarCampanha = async function(id, nomeCampanha, tipo) {
