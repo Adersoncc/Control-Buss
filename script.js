@@ -179,11 +179,11 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         else if (hoje > c.fim) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Vencida</span>`;
         else statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Ativa</span>`;
 
-        // --- NOVA LÓGICA DE EXIBIÇÃO DE VEÍCULOS ---
+        // --- LÓGICA DE EXIBIÇÃO DE VEÍCULOS (X DE Y) ---
         const historico = c.historico_veiculos || c.veiculos || [];
-        const qtdOriginal = historico.length; // Quantos foram alocados desde o início
+        const qtdOriginal = historico.length; 
         
-        // Quantos estão rodando nela AGORA (verificando os ônibus no banco)
+        // Conta quantos veículos realmente possuem o nome dessa campanha no cadastro deles AGORA
         const qtdAtivos = cacheOnibus.filter(o =>
             c.tipo === 'backseat' ? o.campanha_backseat === c.nome : o.campanha === c.nome
         ).length;
@@ -191,15 +191,15 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         let textoVeiculos = '';
         
         if (hoje > c.fim) {
-            // Se venceu, mostra apenas o histórico
+            // Se venceu, mostra apenas o histórico total
             textoVeiculos = `${qtdOriginal} veículos`;
         } else {
             // Se está ativa ou agendada
             if (qtdAtivos === qtdOriginal || qtdOriginal === 0) {
-                // Se nenhum ônibus foi remanejado, mostra normal
+                // Se nenhum ônibus foi remanejado, mostra a contagem normal
                 textoVeiculos = `${qtdAtivos} veículos`;
             } else {
-                // Se algum ônibus foi puxado para outra campanha, mostra o destaque
+                // Se o número atual for menor que o original, mostra a divisão
                 textoVeiculos = `<span class="text-blue-700 font-bold">${qtdAtivos} ativos</span> <br><span class="text-xs text-gray-500">(de ${qtdOriginal} originais)</span>`;
             }
         }
