@@ -1,4 +1,4 @@
-// script.js - Control-Buss
+// script.js - Control-Buss (VERSÃO DEFINITIVA COM CORREÇÕES DE CONTAGEM)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -84,31 +84,39 @@ window.carregarDados = async function() {
     }
 };
 
+// CORREÇÃO 1: Matemática rigorosa dos veículos livres baseada nas campanhas ativas
 function atualizarMetricas() {
     const total = cacheOnibus.length;
     const operando = cacheOnibus.filter(o => o.status === 'Operando').length;
     const parados = cacheOnibus.filter(o => o.status === 'Parado' || o.status === 'Em Manutenção').length;
     
-    // Contagens separadas rigorosamente
-    const dispTradicional = cacheOnibus.filter(o => !o.campanha || o.campanha.trim() === '').length;
-    const dispBackseat = cacheOnibus.filter(o => !o.campanha_backseat || o.campanha_backseat.trim() === '').length;
+    const hoje = new Date().toISOString().split('T')[0];
 
-    // Atualiza os contadores na tela
+    const campanhasAtivasTradicionais = cacheCampanhas.filter(c => c.fim >= hoje && (c.tipo === 'normal' || !c.tipo));
+    const campanhasAtivasBackseat = cacheCampanhas.filter(c => c.fim >= hoje && c.tipo === 'backseat');
+
+    const veiculosOcupadosTradicional = new Set();
+    campanhasAtivasTradicionais.forEach(c => {
+        if (c.veiculos) c.veiculos.forEach(v => veiculosOcupadosTradicional.add(v));
+    });
+
+    const veiculosOcupadosBackseat = new Set();
+    campanhasAtivasBackseat.forEach(c => {
+        if (c.veiculos) c.veiculos.forEach(v => veiculosOcupadosBackseat.add(v));
+    });
+
+    const dispTradicional = total - veiculosOcupadosTradicional.size;
+    const dispBackseat = total - veiculosOcupadosBackseat.size;
+
     if (document.getElementById("metric-total")) document.getElementById("metric-total").innerText = total;
     if (document.getElementById("metric-operando")) document.getElementById("metric-operando").innerText = operando;
     if (document.getElementById("metric-parados")) document.getElementById("metric-parados").innerText = parados;
     
-    // Se você já atualizou o HTML com os 5 cards novos, estes dois abaixo vão funcionar:
     if (document.getElementById("metric-livres-tradicional")) document.getElementById("metric-livres-tradicional").innerText = dispTradicional;
     if (document.getElementById("metric-livres-backseat")) document.getElementById("metric-livres-backseat").innerText = dispBackseat;
     
-    // Fallback para caso não tenha atualizado o HTML com os 5 cards ainda
     if (document.getElementById("metric-sem-campanha")) {
-        const semCampanha = cacheOnibus.filter(o => 
-            (!o.campanha || o.campanha.trim() === '') && 
-            (!o.campanha_backseat || o.campanha_backseat.trim() === '')
-        ).length;
-        document.getElementById("metric-sem-campanha").innerText = semCampanha;
+        document.getElementById("metric-sem-campanha").innerText = dispTradicional;
     }
 }
 
@@ -179,11 +187,10 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         else if (hoje > c.fim) statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Vencida</span>`;
         else statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Ativa</span>`;
 
-        // --- LÓGICA DE EXIBIÇÃO DE VEÍCULOS (X DE Y) ---
-        const historico = c.historico_veiculos || c.veiculos || [];
+        // CORREÇÃO 2: Lógica visual X de Y adaptada para campanhas novas e antigas
+        const historico = c.historico_veiculos && c.historico_veiculos.length > 0 ? c.historico_veiculos : (c.veiculos || []);
         const qtdOriginal = historico.length; 
         
-        // Conta quantos veículos realmente possuem o nome dessa campanha no cadastro deles AGORA
         const qtdAtivos = cacheOnibus.filter(o =>
             c.tipo === 'backseat' ? o.campanha_backseat === c.nome : o.campanha === c.nome
         ).length;
@@ -191,16 +198,12 @@ function gerarLinhasHTML(lista, tbodyId, mensagemVazio) {
         let textoVeiculos = '';
         
         if (hoje > c.fim) {
-            // Se venceu, mostra apenas o histórico total
             textoVeiculos = `${qtdOriginal} veículos`;
         } else {
-            // Se está ativa ou agendada
             if (qtdAtivos === qtdOriginal || qtdOriginal === 0) {
-                // Se nenhum ônibus foi remanejado, mostra a contagem normal
                 textoVeiculos = `${qtdAtivos} veículos`;
             } else {
-                // Se o número atual for menor que o original, mostra a divisão
-                textoVeiculos = `<span class="text-blue-700 font-bold">${qtdAtivos} ativos</span> <br><span class="text-xs text-gray-500">(de ${qtdOriginal} originais)</span>`;
+                textoVeiculos = `<span class="text-blue-700 font-bold">${qtdAtivos} ativos</span> <br><span class="text-xs text-gray-500">(de ${qtdOriginal} cadastrados)</span>`;
             }
         }
 
@@ -236,7 +239,6 @@ window.abrirDetalhesCampanha = function(idCampanha) {
     document.getElementById("modal-detalhes-inicio").innerText = formatarData(campanha.inicio);
     document.getElementById("modal-detalhes-vencimento").innerText = formatarData(campanha.fim);
 
-    // Usa o histórico garantido para manter o "print"
     const historico = campanha.historico_veiculos || campanha.veiculos || [];
     let onibusDaCampanha = [];
 
@@ -256,7 +258,6 @@ window.abrirDetalhesCampanha = function(idCampanha) {
             let badgeStatus = '';
             const campanhaAtual = campanha.tipo === 'backseat' ? o.campanha_backseat : o.campanha;
 
-            // Se a campanha está ativa, mas o ônibus já foi colado em outra:
             if (campanhaAtual && campanhaAtual !== campanha.nome && hoje <= campanha.fim) {
                 badgeStatus = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Movido p/ ${campanhaAtual}</span>`;
             } else {
@@ -278,7 +279,6 @@ window.abrirDetalhesCampanha = function(idCampanha) {
 
     document.getElementById("modal-detalhes-campanha").classList.remove("hidden");
 };
-
 
 window.fecharModalDetalhesCampanha = function() {
     document.getElementById("modal-detalhes-campanha").classList.add("hidden");
@@ -304,7 +304,6 @@ window.filtrarOnibus = function() {
     renderizarTabelaOnibus(filtrados);
 };
 
-// MODAL ÔNIBUS
 window.abrirModalOnibus = function(id = null) {
     document.getElementById("form-onibus").reset();
     document.getElementById("onibus-id").value = "";
@@ -373,7 +372,6 @@ window.deletarOnibus = async function(id) {
     }
 };
 
-// MODAL CAMPANHA (SERVE PARA NORMAL E BACKSEAT)
 window.abrirModalCampanha = function(tipo = 'normal') {
     document.getElementById("form-campanha").reset();
     document.getElementById("campanha-id").value = ""; 
@@ -387,7 +385,6 @@ window.abrirModalCampanha = function(tipo = 'normal') {
         container.innerHTML = `<p class="text-xs text-gray-500 italic p-2">Nenhum ônibus cadastrado.</p>`;
     } else {
         container.innerHTML = cacheOnibus.map(o => {
-            // Mostra visualmente se o ônibus já está ocupado NESTE tipo específico de campanha
             const ocupado = (tipo === 'normal') ? o.campanha : o.campanha_backseat;
             const badgeOcupado = ocupado ? `<span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Em uso: ${ocupado}</span>` : `<span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Livre</span>`;
 
@@ -402,7 +399,6 @@ window.abrirModalCampanha = function(tipo = 'normal') {
     document.getElementById("modal-campanha").classList.remove("hidden");
 };
 
-// FUNÇÃO NOVA: ABRIR CAMPANHA EXISTENTE PARA EDIÇÃO
 window.editarCampanha = function(id) {
     const campanha = cacheCampanhas.find(c => c.id === id);
     if (!campanha) return;
@@ -419,36 +415,31 @@ window.editarCampanha = function(id) {
     document.getElementById("titulo-modal-campanha").innerText = (tipo === 'backseat') ? "Editar Campanha Backseat" : "Editar Campanha";
 
     const container = document.getElementById("lista-checkbox-onibus");
-    const veiculosMarcados = campanha.veiculos || [];
     
     if (cacheOnibus.length === 0) {
         container.innerHTML = `<p class="text-xs text-gray-500 italic p-2">Nenhum ônibus cadastrado.</p>`;
     } else {
         container.innerHTML = cacheOnibus.map(o => {
-    const ocupadoAtual = (tipo === 'normal') ? o.campanha : o.campanha_backseat;
-    
-    // Deixa marcado APENAS se o ônibus estiver de fato rodando nesta campanha hoje.
-    // Isso impede que você puxe um ônibus roubado de volta sem querer ao salvar.
-    const checked = (ocupadoAtual === campanha.nome) ? "checked" : "";
+            const ocupadoAtual = (tipo === 'normal') ? o.campanha : o.campanha_backseat;
+            const checked = (ocupadoAtual === campanha.nome) ? "checked" : "";
 
-    let badge = '';
-    if (checked) {
-        badge = `<span class="ml-2 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Nesta Campanha</span>`;
-    } else if (ocupadoAtual) {
-        badge = `<span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Em uso: ${ocupadoAtual}</span>`;
-    } else {
-        badge = `<span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Livre</span>`;
-    }
+            let badge = '';
+            if (checked) {
+                badge = `<span class="ml-2 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Nesta Campanha</span>`;
+            } else if (ocupadoAtual) {
+                badge = `<span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Em uso: ${ocupadoAtual}</span>`;
+            } else {
+                badge = `<span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Livre</span>`;
+            }
 
-    return `
-    <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded cursor-pointer border-b border-gray-200">
-        <input type="checkbox" name="onibus-checkbox" value="${o.prefixo}" ${checked} class="rounded text-indigo-600 focus:ring-indigo-500">
-        <span class="text-xs font-medium text-gray-800">Prefixo: ${o.prefixo} ${o.linha ? '(' + o.linha + ')' : ''}</span>
-        ${badge}
-    </label>
-    `;
-}).join('');
-
+            return `
+            <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded cursor-pointer border-b border-gray-200">
+                <input type="checkbox" name="onibus-checkbox" value="${o.prefixo}" ${checked} class="rounded text-indigo-600 focus:ring-indigo-500">
+                <span class="text-xs font-medium text-gray-800">Prefixo: ${o.prefixo} ${o.linha ? '(' + o.linha + ')' : ''}</span>
+                ${badge}
+            </label>
+            `;
+        }).join('');
     }
     document.getElementById("modal-campanha").classList.remove("hidden");
 };
@@ -462,13 +453,14 @@ window.selecionarTodosOnibus = function(marcar) {
     checkboxes.forEach(cb => cb.checked = marcar);
 };
 
+// CORREÇÃO 3: Varredura Rigorosa na hora de salvar, limpando campanhas antigas automaticamente
 window.salvarCampanha = async function(event) {
     event.preventDefault();
     const id = document.getElementById("campanha-id").value; 
     const nome = document.getElementById("campanha-nome").value.trim();
     const inicio = document.getElementById("campanha-inicio").value;
     const fim = document.getElementById("campanha-fim").value;
-    const tipo = document.getElementById("campanha-tipo").value; // 'normal' ou 'backseat'
+    const tipo = document.getElementById("campanha-tipo").value; 
 
     const checkboxes = document.querySelectorAll('input[name="onibus-checkbox"]:checked');
     const prefixosSelecionados = Array.from(checkboxes).map(cb => cb.value);
@@ -499,61 +491,49 @@ window.salvarCampanha = async function(event) {
             });
         }
 
-        // ISOLAMENTO DE ATUALIZAÇÃO NO BANCO DE ÔNIBUS E LIMPEZA DE OUTRAS CAMPANHAS
         const promessasAtualizacao = [];
 
+        // PASSO 1: Varredura limpando as outras campanhas
+        for (const prefixo of prefixosSelecionados) {
+            const onibusNoBanco = cacheOnibus.find(o => o.prefixo === prefixo);
+            if (onibusNoBanco) {
+                const campanhaAntiga = tipo === 'normal' ? onibusNoBanco.campanha : onibusNoBanco.campanha_backseat;
+                
+                if (campanhaAntiga && campanhaAntiga !== nome) {
+                    const campanhaParaLimpar = cacheCampanhas.find(c => c.nome === campanhaAntiga && (c.tipo === tipo || (!c.tipo && tipo === 'normal')));
+                    
+                    if (campanhaParaLimpar) {
+                        const novaLista = (campanhaParaLimpar.veiculos || []).filter(v => v !== prefixo);
+                        promessasAtualizacao.push(updateDoc(doc(db, "campanhas", campanhaParaLimpar.id), { veiculos: novaLista }));
+                    }
+                }
+            }
+        }
+
+        // PASSO 2: Atualizando os ônibus
         for (let o of cacheOnibus) {
             let updatesOnibus = {};
             let alterouOnibus = false;
 
             if (tipo === 'normal') {
                 if (prefixosSelecionados.includes(o.prefixo)) {
-                    // Se o ônibus já estava em OUTRA campanha (ex: Wellington), precisamos removê-lo de lá
-                    if (o.campanha && o.campanha !== nome && o.campanha !== nomeAntigo) {
-                        const campanhaConcorrente = cacheCampanhas.find(c => c.nome === o.campanha && (c.tipo === 'normal' || !c.tipo));
-                        if (campanhaConcorrente) {
-                            // Filtra a lista atual de veículos, tirando o ônibus que foi remanejado
-                            const novaListaVeiculos = (campanhaConcorrente.veiculos || []).filter(v => v !== o.prefixo);
-                            
-                            // Atualiza a campanha antiga no Firebase para que ela não ache mais que tem esse ônibus
-                            promessasAtualizacao.push(updateDoc(doc(db, "campanhas", campanhaConcorrente.id), {
-                                veiculos: novaListaVeiculos
-                            }));
-                        }
-                    }
-
                     if (o.campanha !== nome) {
                         updatesOnibus.campanha = nome;
                         alterouOnibus = true;
                     }
-                } else {
-                    if (o.campanha === nomeAntigo || o.campanha === nome) {
-                        updatesOnibus.campanha = "";
-                        alterouOnibus = true;
-                    }
+                } else if (o.campanha === nome) { 
+                    updatesOnibus.campanha = "";
+                    alterouOnibus = true;
                 }
             } else if (tipo === 'backseat') {
-                if (prefixosSelecionados.includes(o.prefixo)) {
-                    
-                    if (o.campanha_backseat && o.campanha_backseat !== nome && o.campanha_backseat !== nomeAntigo) {
-                        const campanhaConcorrente = cacheCampanhas.find(c => c.nome === o.campanha_backseat && c.tipo === 'backseat');
-                        if (campanhaConcorrente) {
-                            const novaListaVeiculos = (campanhaConcorrente.veiculos || []).filter(v => v !== o.prefixo);
-                            promessasAtualizacao.push(updateDoc(doc(db, "campanhas", campanhaConcorrente.id), {
-                                veiculos: novaListaVeiculos
-                            }));
-                        }
-                    }
-
+                 if (prefixosSelecionados.includes(o.prefixo)) {
                     if (o.campanha_backseat !== nome) {
                         updatesOnibus.campanha_backseat = nome;
                         alterouOnibus = true;
                     }
-                } else {
-                    if (o.campanha_backseat === nomeAntigo || o.campanha_backseat === nome) {
-                        updatesOnibus.campanha_backseat = "";
-                        alterouOnibus = true;
-                    }
+                } else if (o.campanha_backseat === nome) {
+                    updatesOnibus.campanha_backseat = "";
+                    alterouOnibus = true;
                 }
             }
 
@@ -574,15 +554,11 @@ window.salvarCampanha = async function(event) {
     }
 };
 
-
-// FUNÇÃO PARA EXCLUIR CAMPANHA (E LIMPAR OS ÔNIBUS DELA)
 window.deletarCampanha = async function(id, nomeCampanha, tipo) {
     if (confirm(`Deseja realmente excluir a campanha "${nomeCampanha}"?`)) {
         try {
-            // 1. Exclui a campanha da tabela principal
             await deleteDoc(doc(db, "campanhas", id));
-
-            // 2. Remove o nome dessa campanha dos ônibus que estavam vinculados a ela
+            
             const promessasOnibus = [];
             
             for (let o of cacheOnibus) {
@@ -614,5 +590,4 @@ window.deletarCampanha = async function(id, nomeCampanha, tipo) {
     }
 };
 
-// Iniciar carregamento assim que o script rodar
 window.onload = carregarDados;
