@@ -9,10 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <!-- Conecta o Manifest e define a cor da barra do celular -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2563eb">
-<link rel="apple-touch-icon" href="https://dummyimage.com/192x192/2563eb/ffffff.png&text=CB">
-
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <link rel="apple-touch-icon" href="https://dummyimage.com/192x192/2563eb/ffffff.png&text=CB">
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col">
 
@@ -39,7 +38,7 @@
     <!-- MAIN CONTAINER -->
     <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-                <!-- DASHBOARD METRICS -->
+        <!-- DASHBOARD METRICS -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
                 <div>
@@ -78,7 +77,6 @@
             </div>
         </div>
 
-
         <!-- ACTION BUTTONS BAR -->
         <div class="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
             <h2 class="text-lg font-semibold text-gray-800"><i class="fa-solid fa-sliders text-blue-600 mr-2"></i>Ações Rápidas</h2>
@@ -89,7 +87,6 @@
                 <button onclick="abrirModalCampanha('normal')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-sm flex items-center space-x-2">
                     <i class="fa-solid fa-bullhorn"></i><span>Cadastrar Nova Campanha</span>
                 </button>
-                <!-- NOVO BOTÃO BACKSEAT -->
                 <button onclick="abrirModalCampanha('backseat')" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-sm flex items-center space-x-2">
                     <i class="fa-solid fa-chair"></i><span>Cadastrar Campanha Backseat</span>
                 </button>
@@ -158,7 +155,7 @@
         <!-- SECTION: CAMPANHAS BACKSEAT -->
         <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="p-6 border-b border-gray-200">
-                <h2 class="text-lg font-bold text-gray-900 text-purple-800">Campanhas Backseat Registradas</h2>
+                <h2 class="text-lg font-bold text-purple-800">Campanhas Backseat Registradas</h2>
                 <p class="text-sm text-gray-500 mt-0.5">Acompanhe as campanhas internas (Backseat) ativas e agendadas</p>
             </div>
             <div class="overflow-x-auto">
@@ -230,9 +227,12 @@
                     <select id="onibus-garagem" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                         <option value="" disabled selected>Selecione a garagem</option>
                         <option value="Inovare">Inovare</option>
+                        <option value="Inovare P">Inovare P</option>
                         <option value="Prime">Prime</option>
                         <option value="GLV">GLV</option>
                         <option value="Ratrans">Ratrans</option>
+                        <option value="Ratrans P">Ratrans P</option>
+                        <option value="Viper">Viper</option>
                     </select>
                 </div>
                 <div>
@@ -264,7 +264,6 @@
             </div>
             <form id="form-campanha" onsubmit="salvarCampanha(event)" class="p-6 space-y-4">
                 
-                <!-- AQUI ESTÃO OS DOIS CAMPOS ESCONDIDOS IMPORTANTES PARA A EDIÇÃO -->
                 <input type="hidden" id="campanha-id" value=""> 
                 <input type="hidden" id="campanha-tipo" value="normal">
                 
@@ -345,15 +344,15 @@
     <!-- SCRIPT JS -->
     <script type="module" src="script.js"></script>
     <!-- Registra o Service Worker (sw.js) -->
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('SW registrado!'))
-        .catch(err => console.log('Erro no SW:', err));
-    });
-  }
-</script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW registrado!'))
+            .catch(err => console.log('Erro no SW:', err));
+        });
+      }
+    </script>
     
 </body>
 </html>
