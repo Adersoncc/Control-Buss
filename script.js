@@ -589,5 +589,78 @@ window.deletarCampanha = async function(id, nomeCampanha, tipo) {
         }
     }
 };
+// --- SISTEMA DE VISUALIZAÇÃO RÁPIDA DE ÔNIBUS LIVRES ---
+
+window.abrirModalLivres = function(tipo) {
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // 1. Isolar campanhas ativas do tipo clicado (Tradicional ou Backseat)
+    const campanhasAtivas = cacheCampanhas.filter(c => c.fim >= hoje && (tipo === 'normal' ? (c.tipo === 'normal' || !c.tipo) : c.tipo === 'backseat'));
+    
+    // 2. Extrair todos os veículos que estão atualmente com adesivo neste tipo
+    const veiculosOcupados = new Set();
+    campanhasAtivas.forEach(c => {
+        if (c.veiculos) c.veiculos.forEach(v => veiculosOcupados.add(v));
+    });
+
+    // 3. Filtrar veículos 100% livres (também ocultamos os que estão "Parados/Manutenção")
+    const onibusLivres = cacheOnibus.filter(o => !veiculosOcupados.has(o.prefixo) && o.status === 'Operando');
+
+    // 4. Agrupar os veículos resultantes por Garagem
+    const garagens = {};
+    onibusLivres.forEach(o => {
+        const g = (o.garagem && o.garagem.trim() !== '') ? o.garagem : "Outros (Sem Garagem)";
+        if (!garagens[g]) garagens[g] = [];
+        garagens[g].push(o.prefixo);
+    });
+
+    // 5. Configurar Cabeçalho do Modal
+    const titulo = document.getElementById("titulo-modal-livres");
+    const conteudo = document.getElementById("conteudo-modal-livres");
+
+    titulo.innerHTML = tipo === 'normal' 
+        ? `<i class="fa-solid fa-bullhorn text-indigo-600 mr-2"></i> Livres (Tradicional)` 
+        : `<i class="fa-solid fa-chair text-purple-600 mr-2"></i> Livres (Backseat)`;
+
+    // 6. Gerar os blocos visuais de Garagem + Contagem + Prefixos
+    if (Object.keys(garagens).length === 0) {
+        conteudo.innerHTML = `<div class="bg-white p-6 rounded-xl border border-gray-200 text-center"><p class="text-gray-500 font-medium">Nenhum veículo operando e livre no momento.</p></div>`;
+    } else {
+        const garagensOrdenadas = Object.keys(garagens).sort();
+        let html = '';
+        
+        garagensOrdenadas.forEach(g => {
+            // Ordena os números dos ônibus do menor pro maior (Ex: 4001, 4002...)
+            const prefixos = garagens[g].sort((a, b) => Number(a) - Number(b));
+            const qtd = prefixos.length;
+            const corBadge = tipo === 'normal' ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800';
+            
+            html += `
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                    <h4 class="font-bold text-gray-800 text-sm uppercase tracking-wider">${g}</h4>
+                    <span class="${corBadge} text-xs font-bold px-3 py-1 rounded-full border border-opacity-20 border-current shadow-sm">${qtd} Livre${qtd > 1 ? 's' : ''}</span>
+                </div>
+                <div class="p-4 flex flex-wrap gap-2.5">
+                    ${prefixos.map(p => `
+                        <span class="bg-white border-2 border-gray-200 text-gray-800 text-sm font-bold px-3 py-1.5 rounded-lg shadow-sm hover:border-gray-400 transition cursor-default">
+                            ${p}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+            `;
+        });
+        conteudo.innerHTML = html;
+    }
+
+    // Abre o modal
+    document.getElementById("modal-livres").classList.remove("hidden");
+};
+
+window.fecharModalLivres = function() {
+    document.getElementById("modal-livres").classList.add("hidden");
+};
+
 
 window.onload = carregarDados;
