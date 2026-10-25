@@ -1,6 +1,7 @@
 // script.js - Control-Buss (VERSÃO DEFINITIVA COM CORREÇÕES DE CONTAGEM)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // CONFIGURAÇÃO DO FIREBASE
 const firebaseConfig = {
@@ -64,7 +65,7 @@ async function verificarCampanhasVencidas() {
     }
 }
 
-window.carregarDados = async function() {
+/* window.carregarDados = async function() {
     try {
         const snapOnibus = await getDocs(collection(db, "onibus"));
         cacheOnibus = snapOnibus.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -82,7 +83,56 @@ window.carregarDados = async function() {
     } catch (error) {
         console.error("Erro ao carregar dados:", error);
     }
+}; */
+// Variável de controle para saber se as duas coleções já carregaram a 1ª vez
+let statusCarregamento = { onibus: false, campanhas: false };
+
+window.carregarDados = function() {
+    // 1. Escuta contínua da coleção "onibus"
+    onSnapshot(collection(db, "onibus"), (snapshot) => {
+        cacheOnibus = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        cacheOnibus.sort((a, b) => Number(a.prefixo) - Number(b.prefixo));
+        
+        statusCarregamento.onibus = true;
+        processarAtualizacaoTempoReal();
+    }, (error) => {
+        console.error("Erro no listener de ônibus:", error);
+    });
+
+    // 2. Escuta contínua da coleção "campanhas"
+    onSnapshot(collection(db, "campanhas"), (snapshot) => {
+        cacheCampanhas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        cacheCampanhas.reverse(); 
+        
+        statusCarregamento.campanhas = true;
+        processarAtualizacaoTempoReal();
+    }, (error) => {
+        console.error("Erro no listener de campanhas:", error);
+    });
 };
+
+// Nova função central para processar as mudanças em tempo real
+async function processarAtualizacaoTempoReal() {
+    // Só atualiza a tela se tanto os ônibus quanto as campanhas já tiverem sido baixados
+    if (!statusCarregamento.onibus || !statusCarregamento.campanhas) return;
+
+    // Executa sua regra de desvincular campanhas vencidas
+    await verificarCampanhasVencidas();
+
+    // Atualiza os cards superiores (Frota, Livres, etc)
+    atualizarMetricas();
+    
+    // Atualiza as tabelas de campanhas
+    renderizarTabelaCampanhas();
+
+    // Atualiza a tabela de ônibus (respeitando se o usuário está com o filtro/pesquisa ativo)
+    const inputFiltro = document.getElementById("filtro-onibus");
+    if (inputFiltro && inputFiltro.value.trim() !== "") {
+        window.filtrarOnibus(); // Aplica o filtro em cima dos dados novos
+    } else {
+        renderizarTabelaOnibus(cacheOnibus);
+    }
+}
 
 // CORREÇÃO 1: Matemática rigorosa dos veículos livres baseada nas campanhas ativas
 function atualizarMetricas() {
@@ -351,7 +401,7 @@ window.salvarOnibus = async function(event) {
             await addDoc(collection(db, "onibus"), dadosOnibus);
         }
         fecharModalOnibus();
-        carregarDados();
+        //carregarDados();
     } catch (error) {
         console.error("Erro ao salvar ônibus:", error);
     }
@@ -365,7 +415,7 @@ window.deletarOnibus = async function(id) {
     if (confirm("Deseja realmente excluir este ônibus?")) {
         try {
             await deleteDoc(doc(db, "onibus", id));
-            carregarDados();
+            //carregarDados();
         } catch (error) {
             console.error("Erro ao excluir ônibus:", error);
         }
@@ -547,7 +597,7 @@ window.salvarCampanha = async function(event) {
         }
 
         fecharModalCampanha();
-        carregarDados();
+        //carregarDados();
     } catch (error) {
         console.error("Erro ao salvar campanha:", error);
         alert("Erro ao salvar a campanha. Verifique o console.");
@@ -582,7 +632,7 @@ window.deletarCampanha = async function(id, nomeCampanha, tipo) {
                 await Promise.all(promessasOnibus);
             }
 
-            carregarDados();
+            //carregarDados();
         } catch (error) {
             console.error("Erro ao excluir campanha:", error);
             alert("Erro ao excluir. Verifique o console.");
