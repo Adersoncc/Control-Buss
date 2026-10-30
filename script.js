@@ -1,6 +1,7 @@
 // script.js - Control-Buss (VERSÃO DEFINITIVA COM CORREÇÕES DE CONTAGEM)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // CONFIGURAÇÃO DO FIREBASE
 const firebaseConfig = {
@@ -64,7 +65,7 @@ async function verificarCampanhasVencidas() {
     }
 }
 
-window.carregarDados = async function() {
+/* window.carregarDados = async function() {
     try {
         const snapOnibus = await getDocs(collection(db, "onibus"));
         cacheOnibus = snapOnibus.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -82,7 +83,56 @@ window.carregarDados = async function() {
     } catch (error) {
         console.error("Erro ao carregar dados:", error);
     }
+}; */
+// Variável de controle para saber se as duas coleções já carregaram a 1ª vez
+let statusCarregamento = { onibus: false, campanhas: false };
+
+window.carregarDados = function() {
+    // 1. Escuta contínua da coleção "onibus"
+    onSnapshot(collection(db, "onibus"), (snapshot) => {
+        cacheOnibus = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        cacheOnibus.sort((a, b) => Number(a.prefixo) - Number(b.prefixo));
+        
+        statusCarregamento.onibus = true;
+        processarAtualizacaoTempoReal();
+    }, (error) => {
+        console.error("Erro no listener de ônibus:", error);
+    });
+
+    // 2. Escuta contínua da coleção "campanhas"
+    onSnapshot(collection(db, "campanhas"), (snapshot) => {
+        cacheCampanhas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        cacheCampanhas.reverse(); 
+        
+        statusCarregamento.campanhas = true;
+        processarAtualizacaoTempoReal();
+    }, (error) => {
+        console.error("Erro no listener de campanhas:", error);
+    });
 };
+
+// Nova função central para processar as mudanças em tempo real
+async function processarAtualizacaoTempoReal() {
+    // Só atualiza a tela se tanto os ônibus quanto as campanhas já tiverem sido baixados
+    if (!statusCarregamento.onibus || !statusCarregamento.campanhas) return;
+
+    // Executa sua regra de desvincular campanhas vencidas
+    await verificarCampanhasVencidas();
+
+    // Atualiza os cards superiores (Frota, Livres, etc)
+    atualizarMetricas();
+    
+    // Atualiza as tabelas de campanhas
+    renderizarTabelaCampanhas();
+
+    // Atualiza a tabela de ônibus (respeitando se o usuário está com o filtro/pesquisa ativo)
+    const inputFiltro = document.getElementById("filtro-onibus");
+    if (inputFiltro && inputFiltro.value.trim() !== "") {
+        window.filtrarOnibus(); // Aplica o filtro em cima dos dados novos
+    } else {
+        renderizarTabelaOnibus(cacheOnibus);
+    }
+}
 
 // CORREÇÃO 1: Matemática rigorosa dos veículos livres baseada nas campanhas ativas
 function atualizarMetricas() {
@@ -351,7 +401,7 @@ window.salvarOnibus = async function(event) {
             await addDoc(collection(db, "onibus"), dadosOnibus);
         }
         fecharModalOnibus();
-        carregarDados();
+        //carregarDados();
     } catch (error) {
         console.error("Erro ao salvar ônibus:", error);
     }
@@ -365,7 +415,7 @@ window.deletarOnibus = async function(id) {
     if (confirm("Deseja realmente excluir este ônibus?")) {
         try {
             await deleteDoc(doc(db, "onibus", id));
-            carregarDados();
+            //carregarDados();
         } catch (error) {
             console.error("Erro ao excluir ônibus:", error);
         }
@@ -547,7 +597,7 @@ window.salvarCampanha = async function(event) {
         }
 
         fecharModalCampanha();
-        carregarDados();
+        //carregarDados();
     } catch (error) {
         console.error("Erro ao salvar campanha:", error);
         alert("Erro ao salvar a campanha. Verifique o console.");
@@ -582,12 +632,85 @@ window.deletarCampanha = async function(id, nomeCampanha, tipo) {
                 await Promise.all(promessasOnibus);
             }
 
-            carregarDados();
+            //carregarDados();
         } catch (error) {
             console.error("Erro ao excluir campanha:", error);
             alert("Erro ao excluir. Verifique o console.");
         }
     }
 };
+// --- SISTEMA DE VISUALIZAÇÃO RÁPIDA DE ÔNIBUS LIVRES ---
+
+window.abrirModalLivres = function(tipo) {
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // 1. Isolar campanhas ativas do tipo clicado (Tradicional ou Backseat)
+    const campanhasAtivas = cacheCampanhas.filter(c => c.fim >= hoje && (tipo === 'normal' ? (c.tipo === 'normal' || !c.tipo) : c.tipo === 'backseat'));
+    
+    // 2. Extrair todos os veículos que estão atualmente com adesivo neste tipo
+    const veiculosOcupados = new Set();
+    campanhasAtivas.forEach(c => {
+        if (c.veiculos) c.veiculos.forEach(v => veiculosOcupados.add(v));
+    });
+
+    // 3. Filtrar veículos 100% livres (também ocultamos os que estão "Parados/Manutenção")
+    const onibusLivres = cacheOnibus.filter(o => !veiculosOcupados.has(o.prefixo) && o.status === 'Operando');
+
+    // 4. Agrupar os veículos resultantes por Garagem
+    const garagens = {};
+    onibusLivres.forEach(o => {
+        const g = (o.garagem && o.garagem.trim() !== '') ? o.garagem : "Outros (Sem Garagem)";
+        if (!garagens[g]) garagens[g] = [];
+        garagens[g].push(o.prefixo);
+    });
+
+    // 5. Configurar Cabeçalho do Modal
+    const titulo = document.getElementById("titulo-modal-livres");
+    const conteudo = document.getElementById("conteudo-modal-livres");
+
+    titulo.innerHTML = tipo === 'normal' 
+        ? `<i class="fa-solid fa-bullhorn text-indigo-600 mr-2"></i> Livres (Tradicional)` 
+        : `<i class="fa-solid fa-chair text-purple-600 mr-2"></i> Livres (Backseat)`;
+
+    // 6. Gerar os blocos visuais de Garagem + Contagem + Prefixos
+    if (Object.keys(garagens).length === 0) {
+        conteudo.innerHTML = `<div class="bg-white p-6 rounded-xl border border-gray-200 text-center"><p class="text-gray-500 font-medium">Nenhum veículo operando e livre no momento.</p></div>`;
+    } else {
+        const garagensOrdenadas = Object.keys(garagens).sort();
+        let html = '';
+        
+        garagensOrdenadas.forEach(g => {
+            // Ordena os números dos ônibus do menor pro maior (Ex: 4001, 4002...)
+            const prefixos = garagens[g].sort((a, b) => Number(a) - Number(b));
+            const qtd = prefixos.length;
+            const corBadge = tipo === 'normal' ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800';
+            
+            html += `
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                    <h4 class="font-bold text-gray-800 text-sm uppercase tracking-wider">${g}</h4>
+                    <span class="${corBadge} text-xs font-bold px-3 py-1 rounded-full border border-opacity-20 border-current shadow-sm">${qtd} Livre${qtd > 1 ? 's' : ''}</span>
+                </div>
+                <div class="p-4 flex flex-wrap gap-2.5">
+                    ${prefixos.map(p => `
+                        <span class="bg-white border-2 border-gray-200 text-gray-800 text-sm font-bold px-3 py-1.5 rounded-lg shadow-sm hover:border-gray-400 transition cursor-default">
+                            ${p}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+            `;
+        });
+        conteudo.innerHTML = html;
+    }
+
+    // Abre o modal
+    document.getElementById("modal-livres").classList.remove("hidden");
+};
+
+window.fecharModalLivres = function() {
+    document.getElementById("modal-livres").classList.add("hidden");
+};
+
 
 window.onload = carregarDados;
