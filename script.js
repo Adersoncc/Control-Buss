@@ -4,7 +4,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 // import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-const storage = getStorage(app);
+
 
 // CONFIGURAÇÃO DO FIREBASE
 const firebaseConfig = {
@@ -18,6 +18,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 let cacheOnibus = [];
 let cacheCampanhas = [];
@@ -193,21 +194,27 @@ window.renderizarTabelaOnibus = function(lista) {
         
         const campanhaTexto = o.campanha && o.campanha.trim() !== '' ? `<span class="px-2 py-0.5 text-xs font-medium rounded bg-indigo-50 text-indigo-700">${o.campanha}</span>` : `<span class="text-gray-400 italic">Sem Campanha</span>`;
         const backseatTexto = o.campanha_backseat && o.campanha_backseat.trim() !== '' ? `<span class="px-2 py-0.5 text-xs font-medium rounded bg-purple-50 text-purple-700">${o.campanha_backseat}</span>` : `<span class="text-gray-400 italic">Sem Backseat</span>`;
+        // button new picture
+        //const iconeVerFoto = o.foto_url ? `<a href="${o.foto_url}" target="_blank" class="text-blue-500 text-xs ml-2 hover:underline"><i class="fa-solid fa-image"></i> Ver</a>` : '';
+       const iconeVerFoto = o.foto_url ? `<button onclick="abrirModalVerFoto('${o.foto_url}')" class="text-blue-500 text-xs ml-2 hover:underline"><i class="fa-solid fa-image"></i> Ver</button>` : '';
+       const btnFoto = `<button onclick="abrirModalFoto('${o.id}', '${o.prefixo}')" title="Comprovação Fotográfica" class="text-emerald-600 hover:text-emerald-800 p-1"><i class="fa-solid fa-camera"></i></button>`;
 
         return `
             <tr class="hover:bg-gray-50 transition border-b border-gray-100">
-                <td class="py-3 px-6 font-semibold text-gray-900">${o.prefixo}</td>
+                <td class="py-3 px-6 font-semibold text-gray-900">${o.prefixo} ${iconeVerFoto}</td>
                 <td class="py-3 px-6 text-gray-700">${garagemTexto}</td>
                 <td class="py-3 px-6 text-gray-700">${linhaTexto}</td>
                 <td class="py-3 px-6">${badgeStatus}</td>
                 <td class="py-3 px-6">${campanhaTexto}</td>
                 <td class="py-3 px-6">${backseatTexto}</td>
                 <td class="py-3 px-6 text-center space-x-2">
+                    ${btnFoto}
                     <button onclick="editarOnibus('${o.id}')" title="Editar" class="text-blue-600 hover:text-blue-800 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
                     <button onclick="deletarOnibus('${o.id}')" title="Excluir" class="text-rose-600 hover:text-rose-800 p-1"><i class="fa-solid fa-trash"></i></button>
                 </td>
             </tr>
         `;
+
     }).join('');
 };
 
@@ -714,6 +721,129 @@ window.abrirModalLivres = function(tipo) {
 window.fecharModalLivres = function() {
     document.getElementById("modal-livres").classList.add("hidden");
 };
+let arquivoFotoAtual = null;
+
+// NOVA FUNÇÃO: Comprime a imagem antes do envio (Coração da otimização)
+function comprimirImagem(file, maxWidth, maxHeight, quality) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                // Mantém a proporção da foto, limitando pelo tamanho máximo
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round(height * (maxWidth / width));
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round(width * (maxHeight / height));
+                        height = maxHeight;
+                    }
+                }
+
+                // Cria o canvas (tela virtual) para desenhar a imagem redimensionada
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Converte a imagem do canvas para um arquivo Blob (JPEG otimizado)
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/jpeg', quality);
+            };
+        };
+    });
+}
+
+window.abrirModalFoto = function(id, prefixo) {
+    document.getElementById("foto-onibus-id").value = id;
+    document.getElementById("foto-prefixo-texto").innerText = `Anexar foto ao Prefixo: ${prefixo}`;
+    
+    // Reseta o modal
+    document.getElementById("input-foto").value = "";
+    document.getElementById("preview-container").classList.add("hidden");
+    document.getElementById("imagem-preview").src = "";
+    document.getElementById("status-upload").classList.add("hidden");
+    document.getElementById("btn-enviar-foto").disabled = true;
+    arquivoFotoAtual = null;
+
+    document.getElementById("modal-foto").classList.remove("hidden");
+};
+
+window.fecharModalFoto = function() {
+    document.getElementById("modal-foto").classList.add("hidden");
+};
+
+// Envio da foto
+// Comprime na hora que o usuário seleciona ou tira a foto
+window.mostrarPreviewFoto = async function(event) {
+    const file = event.target.files[0];
+    if (file) {
+        // Mostra um aviso rápido na tela pro usuário saber que tá carregando
+        document.getElementById("status-upload").innerText = "Otimizando imagem...";
+        document.getElementById("status-upload").classList.remove("hidden");
+
+        // Chama a função de compressão: 
+        // Max 1280px (ótimo para telas de celular/PC) e 75% de qualidade
+        const blobComprimido = await comprimirImagem(file, 1280, 1280, 0.75);
+        arquivoFotoAtual = blobComprimido;
+
+        // Cria uma URL temporária só pro preview
+        document.getElementById("imagem-preview").src = URL.createObjectURL(blobComprimido);
+        document.getElementById("preview-container").classList.remove("hidden");
+        document.getElementById("btn-enviar-foto").disabled = false;
+        
+        // Esconde o aviso de otimização
+        document.getElementById("status-upload").classList.add("hidden");
+        document.getElementById("status-upload").innerText = "Enviando foto, aguarde...";
+    }
+};
+
+window.salvarFotoBus = async function() {
+    if (!arquivoFotoAtual) return;
+
+    const id = document.getElementById("foto-onibus-id").value;
+    const prefixo = document.getElementById("foto-prefixo-texto").innerText.split(": ")[1];
+    const btn = document.getElementById("btn-enviar-foto");
+    const status = document.getElementById("status-upload");
+
+    try {
+        btn.disabled = true;
+        btn.innerText = "Enviando...";
+        status.classList.remove("hidden");
+
+        // Forçamos a extensão .jpg, pois a compressão converteu tudo para image/jpeg
+        const nomeArquivo = `${prefixo}_${Date.now()}.jpg`;
+        const caminhoRef = ref(storage, `fotos_garagem/${nomeArquivo}`);
+
+        // O uploadBytes aceita o Blob comprimido sem problemas
+        await uploadBytes(caminhoRef, arquivoFotoAtual);
+        const urlDownload = await getDownloadURL(caminhoRef);
+
+        await updateDoc(doc(db, "onibus", id), {
+            foto_url: urlDownload
+        });
+
+        alert("Foto anexada com sucesso!");
+        fecharModalFoto();
+    } catch (error) {
+        console.error("Erro ao subir a foto:", error);
+        alert("Erro ao enviar a foto. Verifique a conexão.");
+        btn.disabled = false;
+        btn.innerText = "Salvar Foto";
+        status.classList.add("hidden");
+    }
+};
+
 
 
 window.onload = carregarDados;
