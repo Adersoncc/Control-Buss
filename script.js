@@ -843,6 +843,17 @@ window.salvarFotoBus = async function() {
         status.classList.add("hidden");
     }
 };
+//show picture on picture
+window.abrirModalVerFoto = function(url) {
+    document.getElementById("imagem-ampliada").src = url;
+    document.getElementById("modal-ver-foto").classList.remove("hidden");
+};
+
+window.fecharModalVerFoto = function() {
+    document.getElementById("modal-ver-foto").classList.add("hidden");
+    document.getElementById("imagem-ampliada").src = ""; // Limpa a imagem
+};
+
 
 
 
