@@ -1,7 +1,10 @@
-// script.js - Control-Buss (VERSÃO DEFINITIVA COM CORREÇÕES DE CONTAGEM)
+// Control-Buss (VERSÃO DEFINITIVA COM CORREÇÕES DE CONTAGEM)
+// new import pictures
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 // import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+const storage = getStorage(app);
 
 // CONFIGURAÇÃO DO FIREBASE
 const firebaseConfig = {
